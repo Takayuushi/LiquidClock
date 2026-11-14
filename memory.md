@@ -1519,3 +1519,21 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - The Digit Lab empty-start usability fix remains isolated on `feature/digit-lab-empty-start-107`; it is not included in this renderer branch.
 
 
+
+
+## Build #108 visual review and Build #109 candidate — post-coherence chroma transport (14 Nov 2026)
+- The user supplied the missing Build #108 Digit Lab screenshots in the continuation chat. Both are confirmed by the user as Build #108 results; do not question whether they are current.
+- Screenshot settings: sample clock `10:47`, compressed font width, weight `539`, Liquid Glass material.
+- Blue/yellow diagonal wallpaper: the warm/orange region is still visibly more subdued than the surrounding cool/white transmission, especially through the central/lower portion of `0`; the strong diagonal wallpaper structure and blue/white reflections remain legible.
+- Pink beach wallpaper: pink environmental colour is visible through `1`/`0`, and turquoise water remains distinguishable through the glass; the overall face does not collapse into the approved Frosted/Solid appearance.
+- Preserve the Build #108 optical character as the comparison starting point. The outstanding visual target is richer, more coherent environmental colour inside the volume—especially sampled warm colour—without a general saturation boost, milky face, clipped white regions, or loss of blue/white detail.
+- New isolated continuation branch: `feature/post-coherence-chroma-109`, created directly from Build #108 commit `e47886847660b082b2dc1d9eb65b43dae8bd7de6`. The #108 branch and the accepted #93 baseline branch are unchanged.
+- Renderer commit: `d4a20dc2b6291644adb2a943b7411254ff3ce89f` — “Build #109: derive chroma after band stabilisation”.
+- Diagnosis: #108 built `chromaticMicrofacetTransmission` and the warm-light detector from the raw directional microfacet bundle before `directionalConfidence` and `pairedBandSoftening` blended it with the isotropic fallback. The subsequent volume and diffuse paths could therefore use a colour source that bypassed the final coherence-stabilised band blend.
+- #109 moves the chroma-retention calculation and warm-light detection after the coherence/paired-band stabilisation. It recomputes the linear-light source from the final `microfacetTransmission`, then uses that same stable source for chroma preservation and warm transport.
+- The linear-light chromatic residual multiplier changes conservatively from `1.10` to `1.14`; the broad diffuse source blend changes from `0.26` to `0.30`. Existing warm-response coefficients, Beer–Lambert path coefficient, optical thickness, refraction, curvature, reflections, surface geometry and scattering coverage are unchanged.
+- This is a shared wallpaper-derived calculation: no digit/time/screen-region/wallpaper presets, no hue-specific fixed tint, no new wallpaper texture reads, uniforms, render passes or dependencies.
+- Frosted/Solid is not intentionally changed. The change remains in the Liquid Glass transmission/scattering inputs; final Solid selection still uses the existing `mix(glassTransmitted, center, solidMode)` material separation. Validate Frosted side-by-side before accepting the candidate.
+- GitHub source commit was made with `[skip ci]`; no Android or Digit Lab build was triggered. There are no #109 APKs or CI results to report yet.
+- On-device test, once explicitly requested/built: compare #109 directly with #108 using identical `10:47`, compressed width, weight 539, placement and scale. Reuse the blue/yellow diagonal and pink beach wallpapers; also check the red-nebula reference if available. Inspect whether the orange/warm colour in `0` is retained more convincingly after the coherence blend, while blue-white reflections, wallpaper detail and the pink/turquoise beach response remain natural. Confirm Frosted Glass is unchanged.
+- #109 is experimental and not promoted. Keep #108 as its direct rollback checkpoint; Build #93 remains the accepted project-wide visual baseline unless the user explicitly changes that decision.
