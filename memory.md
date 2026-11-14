@@ -972,3 +972,20 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - No new samples, uniforms, render passes, dependencies or per-digit/time/screen/wallpaper presets. Solid/Frosted path remains unchanged.
 - CI expected to trigger automatically from renderer change. Record workflow run IDs, build numbers, exact SHA, artifacts and outcomes only after checking GitHub Actions.
 - Status: experimental, not visually validated. Compare against the #56 screenshot and Apple's black/blue/orange reference wallpaper. Assess orange blending in 0/1, blue transmission in 4/7, overall soft body, and whether it becomes too crisp or remains washed out. Do not change reflection roughness or scatter strength until this candidate is reviewed.
+
+
+## Digit Lab empty-start fix on Build #56 experiment branch (15 Nov 2026)
+- User clarified the only requested UI change: Digit Lab's sample number field must open empty. The screenshot showed the old `0123456789` string still populated, with those digits also rendered in the preview.
+- Investigation found an earlier empty-start implementation on separate branch `feature/digit-lab-empty-start-107`, but that branch was never part of the current `experiment/soft-transmission-from-build-56` lineage. The current branch therefore still had `DEFAULT_SAMPLE = "0123456789"` and explicitly called `setText(DEFAULT_SAMPLE)`.
+- Fixed only `digit-lab/app/src/main/java/com/example/ios27clock/DigitLabActivity.kt` on the current experiment branch:
+  - `DEFAULT_SAMPLE` is now an empty string; the sample clock source starts empty, so the preview should have no numerals at launch.
+  - Removed the explicit `setText(DEFAULT_SAMPLE)`; the EditText opens genuinely empty.
+  - Changed the hint to “Enter digits or time” so an example string is not mistaken for prefilled content.
+  - Updated `isValidSample` so an empty string is valid. Clearing the field now schedules a renderer refresh and clears the preview rather than leaving the previous digits displayed.
+  - Non-empty validation still allows only digits and a single non-leading/non-trailing colon, with the existing 10-character maximum.
+- No renderer/AGSL, typography, layout, wallpaper, material, or Solid/Frosted changes.
+- Workflow update: `.github/workflows/digit-lab.yml` now includes `experiment/**` branches and restores the shared signing-key cache namespace `ios27-liquidclock-shared-debug-signing-v2-` (same workflow setup used by the #113 feature branch). This is required to build the experiment APK and restore the shared certificate rather than creating a new branch-specific signing identity.
+- Source commit: `42513aabb43b8cccad178eee5ca3744b81218493` — “Start Digit Lab with an empty sample field”.
+- Workflow commit: `bfd0ed600af649dd5ab7eeffb3945c1509f9eb1b` — “Enable experiment Digit Lab builds with shared signing”.
+- Digit Lab workflow #122 run `43630645742` started on exact head SHA `bfd0ed600af649dd5ab7eeffb3945c1509f9eb1b`. JDK/Android SDK setup succeeded; at last check the official SF Pro asset preparation step was running, while signing restore, APK build and artifact upload had not yet completed. Do not report APK readiness or signing-cache hit until the workflow confirms them.
+- The Production workflow is intentionally not triggered: this change affects only the standalone Digit Lab activity and its workflow.
