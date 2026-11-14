@@ -1488,3 +1488,18 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Both #105 GitHub Actions workflows completed successfully: Android run `43603296210` (artifact `iOS27-LiquidClock-Android17-debug`) and Digit Lab run `43603296206` (artifact `liquid-clock-digit-lab-debug`).
 
 
+
+
+
+## Build #106 candidate — normal-driven environment reflections (14 Nov 2026)
+- Isolated branch: `feature/normal-driven-reflections-106`, created directly from Build #105 branch `feature/curved-ray-transport-105`. #105 remains unchanged; #97 remains the visual reference baseline.
+- Renderer commit: `299a14d89029563bb85187e4ea80fbd404812b8a`.
+- Replaces fixed key/fill environment lookup offsets with reflected key/fill light directions computed from the existing shared convex surface normal: `R = reflect(-L, N)`. The two existing environment wallpaper reads remain; no new samples, uniforms, render passes, digit masks, region rules or wallpaper-specific logic.
+- Replaces the fixed 0.64 key/fill environment mix with normalized local weights derived from the existing surface normal and key/fill half-vectors. This lets the sampled reflection colour balance change continuously with local surface orientation.
+- The existing view-vector environment reflection already uses the convex surface normal and remains unchanged. This experiment specifically makes the auxiliary key/fill environment reflection samples normal-driven as well.
+- No changes to refraction, curved ray integration, transmitted colour, diffusion, volume/atmospheric scattering, bloom, geometry, SDF normals, GGX roughness, or the Frosted/Solid material path.
+- This is a global shared-material reflection experiment. Its output may vary naturally with surface orientation, but it does not apply special treatment to any glyph, time, or screen region.
+- Experimental and awaiting on-device validation. Compare #106 against #105 and #97 with identical settings on blue/yellow diagonal, pink beach and red-nebula wallpapers. Inspect whether reflected wallpaper features follow the convex shoulders more coherently; check for reversed reflection direction, unexpected colour shifts, harsh hotspots, edge tracing, or loss of transmitted wallpaper detail.
+- Do not promote automatically. User evaluation determines whether the normal-driven reflection model is retained or revised.
+
+
