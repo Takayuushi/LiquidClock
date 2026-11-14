@@ -1550,3 +1550,17 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Important remaining visual gap: the digits still read strongly as outlined/bevelled glass in some regions. The next major effort should target convincing convex front-volume thickness and broad, continuous surface reflections/highlights—not simply more chroma, glow or edge brightness. Preserve the legible wallpaper transmission and avoid turning the face milky.
 - CI success confirms both APK workflows completed; it does not by itself prove runtime correctness. The supplied Digit Lab screenshots provide the device-level visual check. Production APK installation/runtime has not separately been demonstrated by these screenshots.
 - Build #109 remains experimental; do not promote it to the accepted #93 baseline until the user approves. Keep #108 as the immediate rollback checkpoint.
+
+
+## Build #110 candidate — broad convex front-face reflections (14 Nov 2026)
+- Isolated branch: `feature/convex-face-reflections-110`, created from the validated Build #109 branch after both #109 APK workflows passed and the user supplied matching Digit Lab screenshots.
+- Build #109 remains unchanged as the immediate visual rollback checkpoint. The accepted #93 project baseline is unchanged.
+- Renderer commit: `680a004c87b3efcf7a863710a1f96b35771e9daf` — “Build #110: add broad convex front-face reflections”.
+- Visual diagnosis from the user's primary iOS 27 reference: the target has broad, continuous, environment-coloured reflections across the convex front face, not only narrow shoulder highlights. Build #109 has good colour transmission and sharp edge reflections, but parts of the glyph still read as outlined/bevelled glass because its broad area reflection is gated by `glassProfileSlope`.
+- #110 adds one low-frequency front-volume softbox reflection lobe. It uses the existing shared height-field surface normal and key half-vector, with a mask derived from `max(glassCoreVolume, glassEdgeVolume * 0.82)`, so the reflection can cover both the front crown and curved shoulder.
+- The reflection colour reuses the already-computed `directionalEnvironmentReflection` and `glassBrightBloom`; no additional wallpaper samples, SDF samples, uniforms, render passes, dependencies or per-glyph/per-region logic.
+- The new lobe is multiplied by `(1.0 - solidMode)`; Frosted/Solid material output is intentionally unchanged. Existing shoulder area reflection, GGX microfacet reflection, key/fill glints, refraction, chroma transport, Beer–Lambert scattering, optical thickness and surface geometry are unchanged.
+- This experiment targets perceived convexity and continuous front-face reflections rather than increasing edge brightness, global saturation, bloom or haze.
+- CI is expected to run automatically from the feature-branch push for both Android 17 Production and Digit Lab workflows. Record actual run/build numbers and outcomes only after verified.
+- On-device comparison: use identical `10:47`, compressed width, weight 539, Liquid Glass settings and the same blue/yellow diagonal and pink beach wallpapers. Evaluate whether reflections now travel across the face and make the digits feel like thick convex glass; watch for a flat white wash, loss of wallpaper detail, clipped highlights, excessive darkening, or any change to Frosted/Solid.
+- Build #110 is experimental and not promoted. User's iOS 27 screenshot remains the primary visual target. Do not declare success from CI alone; wait for the user's device screenshots.
