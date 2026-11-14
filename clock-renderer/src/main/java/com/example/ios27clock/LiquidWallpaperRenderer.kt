@@ -744,8 +744,24 @@ class LiquidWallpaperRenderer(
             // vertical, horizontal and irregular wallpapers without any
             // digit-, clock-time- or screen-region-specific rules.
             float2 diffusionTangent = float2(-diffusionAxis.y, diffusionAxis.x);
-            float2 glassNearX = diffusionAxis * 28.0;
-            float2 glassNearY = diffusionTangent * 28.0;
+            // Build #121: approximate a finite-width transmitted ray bundle by
+            // widening the existing symmetric near-field kernel in proportion
+            // to local convex curvature and optical path depth. The radius is
+            // bounded and fades with profile/normal confidence, so flat or
+            // uncertain regions retain the #96 sampling footprint. Reuse the
+            // existing four samples; do not add texture reads or a blur pass.
+            float glassCurvatureMagnitude = length(float2(
+                glassCurvatureX,
+                glassCurvatureY
+            ));
+            float glassCurvatureBlurRadius = clamp(
+                glassCurvatureMagnitude * glassOpticalThickness * 3.5,
+                0.0,
+                8.0
+            ) * glassProfileCoverage * normalConfidence;
+            float glassNearRadius = 28.0 + glassCurvatureBlurRadius;
+            float2 glassNearX = diffusionAxis * glassNearRadius;
+            float2 glassNearY = diffusionTangent * glassNearRadius;
             float3 glassNearA = uWallpaper.eval(clamp(
                 samplePoint + glassNearX, float2(0.0), uResolution
             )).rgb;
