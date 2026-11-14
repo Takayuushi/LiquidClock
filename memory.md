@@ -1643,3 +1643,10 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - The remaining concern is not obvious highlight clipping alone; the bright face reflection has limited internal shape/contrast on the bright-sky side, while the underlying convex/volume impression remains weak. Avoid solving this by increasing global brightness, saturation, or adding more white gloss.
 - Coverage still incomplete: no Frosted Glass comparison has been supplied for #112. Solid/Frosted is source-isolated by the `solidMode` selection in code, but visual invariance is not yet device-verified.
 - Decision: retain #112 as a promising HDR colour-preservation candidate, but do not promote it. Before another shader experiment, obtain a Frosted Glass comparison or explicit confirmation that it looks unchanged. Then decide whether to keep the HDR shoulder and move to the next isolated experiment aimed at stronger convex face volume rather than another generic highlight boost.
+
+
+## Clarification — Frosted Glass is a frozen approved design (14 Nov 2026)
+- User clarified that Frosted Glass has already been perfected and is a frozen design. The supplied Frosted Glass screenshot is a reference showing the approved existing appearance, not a request for another validation round or a design iteration.
+- Do not ask the user to keep retesting Frosted Glass as a condition for proceeding. Do not modify its rendering path, styling, controls, or appearance. Treat it as protected/frozen.
+- For Liquid Glass experiments, preserve the existing Solid/Frosted output through the current `solidMode` isolation. The source-level isolation remains a guardrail; it does not need repeated user-side visual approval for every experiment unless an actual regression is reported.
+- Build #112 remains the active experimental Liquid Glass candidate. The pink beach and blue/yellow Digit Lab screenshots are the relevant visual checks for HDR colour/highlight behaviour. Frosted Glass remains the approved reference state, not an open workstream.
