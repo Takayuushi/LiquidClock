@@ -903,10 +903,36 @@ class LiquidWallpaperRenderer(
                 frostedWallpaper,
                 glassReflectionRoughness
             );
-            float3 glassFace = mix(
+            // Compose reflected luminance and chroma separately. The reflection
+            // keeps its full brightness response, while a small portion of the
+            // refracted wallpaper chroma remains visible beneath it. This makes
+            // transmission and reflection read as one coloured glass volume.
+            float refractedFaceLuma = dot(
                 refracted,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float reflectedFaceLuma = dot(
                 glassSoftEnvironmentReflection,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float3 refractedFaceChroma =
+                refracted - float3(refractedFaceLuma);
+            float3 reflectedFaceChroma =
+                glassSoftEnvironmentReflection - float3(reflectedFaceLuma);
+            float transmittedFaceLuma = mix(
+                refractedFaceLuma,
+                reflectedFaceLuma,
                 glassFaceReflectivity
+            );
+            float3 integratedFaceChroma = mix(
+                refractedFaceChroma,
+                reflectedFaceChroma,
+                glassFaceReflectivity * 0.78
+            );
+            float3 glassFace = clamp(
+                float3(transmittedFaceLuma) + integratedFaceChroma,
+                0.0,
+                1.0
             );
             float innerGlassTint = smoothstep(0.0, 12.0, insideDistance) *
                 (1.0 - smoothstep(26.0, 64.0, insideDistance));
