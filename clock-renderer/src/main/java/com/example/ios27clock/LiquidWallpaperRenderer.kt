@@ -561,10 +561,13 @@ class LiquidWallpaperRenderer(
                 float2(0.0),
                 uResolution
             )).rgb;
+            // A tiny redistribution toward the wider pair adds a little
+            // more low-frequency colour merging without increasing blur radius
+            // or changing total transmitted energy.
             float3 microfacetTransmission =
-                center * 0.08 +
+                center * 0.06 +
                 (softNearA + softNearB) * 0.24 +
-                (softFarA + softFarB) * 0.22;
+                (softFarA + softFarB) * 0.23;
             float microfacetDiffusion = mix(
                 0.42,
                 0.96,
