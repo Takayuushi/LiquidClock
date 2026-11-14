@@ -473,7 +473,11 @@ class LiquidWallpaperRenderer(
             // along them. This merges paired white streaks into a coherent
             // optical body while retaining their direction and larger detail.
             // It is one image-driven material response shared by every glyph.
-            float2 diffusionProbe = float2(4.0, 4.0);
+            // A slightly broader neighbourhood stabilises the cross-band
+            // orientation estimate where several narrow parallel streaks
+            // sit close together. This changes direction estimation only;
+            // transmission radii and blend weights remain untouched.
+            float2 diffusionProbe = float2(5.5, 5.5);
             float3 probeLeft = uWallpaper.eval(clamp(
                 samplePoint - float2(diffusionProbe.x, 0.0),
                 float2(0.0),
