@@ -37,6 +37,7 @@ import kotlin.math.hypot
 class DigitLabActivity : Activity() {
     companion object {
         private const val REQUEST_WALLPAPER = 4101
+        private const val REQUEST_EXPORT_DIAGNOSTICS = 4102
         private const val DEFAULT_SAMPLE = ""
         private const val MAX_SAMPLE_LENGTH = 10
     }
@@ -60,6 +61,7 @@ class DigitLabActivity : Activity() {
     private var fontStyle = 0
     private var fontWeight = 400
     private var controlsHidden = false
+    private var pendingDiagnosticReport: String? = null
     private val sampleClockSource = object : RendererClockTextSource {
         @Volatile var sampleText: String = DEFAULT_SAMPLE
         override fun currentTimeText(context: Context): String = sampleText
@@ -76,6 +78,7 @@ class DigitLabActivity : Activity() {
     }
     private val applyWeight = Runnable {
         preferences.edit().putInt("clock_font_weight", fontWeight).apply()
+        ClockDiagnostics.record("Digit Lab font weight changed to " + fontWeight)
         renderer.reloadAppearance(rebuildDistanceField = true)
         preview.invalidate()
     }
@@ -89,11 +92,17 @@ class DigitLabActivity : Activity() {
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
 
+        ClockDiagnostics.initialize(this)
+        ClockDiagnostics.installUncaughtExceptionHandler()
         glassMode = preferences.getBoolean("clock_glass_mode", true)
         fontStyle = preferences.getInt("clock_font_style", 0).coerceIn(0, 3)
         fontWeight = preferences.getInt("clock_font_weight", 400).coerceIn(100, 900)
 
         sampleClockSource.sampleText = DEFAULT_SAMPLE
+        ClockDiagnostics.record(
+            "Digit Lab session start: material=" + if (glassMode) "Liquid Glass" else "Frosted Glass" +
+                ", style=" + fontStyle + ", weight=" + fontWeight
+        )
         renderer = LiquidWallpaperRenderer(
             this,
             ClockWallpaperContent.PREVIEW.toRendererContent(),
@@ -226,6 +235,7 @@ class DigitLabActivity : Activity() {
             val chip = makeChip(name, fontStyle == index) {
                 fontStyle = index
                 preferences.edit().putInt("clock_font_style", index).apply()
+                ClockDiagnostics.record("Digit Lab font width style changed to " + index)
                 renderer.reloadAppearance(rebuildDistanceField = true)
                 updateStyleButtons()
                 preview.invalidate()
@@ -279,7 +289,14 @@ class DigitLabActivity : Activity() {
             setPadding(0, dp(4), 0, dp(6))
         })
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        actions.addView(makeButton("Hide controls") { collapseControls() })
+        actions.addView(
+            makeButton("Export diagnostics") { exportDiagnostics() },
+            LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(8) }
+        )
+        actions.addView(
+            makeButton("Hide controls") { collapseControls() },
+            LinearLayout.LayoutParams(0, dp(40), 1f)
+        )
         content.addView(actions)
 
         scroll.addView(content)
@@ -343,6 +360,7 @@ class DigitLabActivity : Activity() {
     private fun setGlassMode(useGlass: Boolean) {
         glassMode = useGlass
         preferences.edit().putBoolean("clock_glass_mode", useGlass).apply()
+        ClockDiagnostics.record("Digit Lab material changed to " + if (useGlass) "Liquid Glass" else "Frosted Glass")
         renderer.reloadAppearance(rebuildDistanceField = false)
         updateModeButtons()
         preview.invalidate()
@@ -357,6 +375,31 @@ class DigitLabActivity : Activity() {
                     !value.contains("::")
             ))
 
+    private fun exportDiagnostics() {
+        ClockDiagnostics.record("User requested Digit Lab diagnostics export")
+        val sessionDetails = listOf(
+            "Sample: " + sampleClockSource.sampleText,
+            "Material: " + if (glassMode) "Liquid Glass" else "Frosted Glass",
+            "Font width style index: " + fontStyle,
+            "Font weight: " + fontWeight,
+            "Preview view size: " + preview.width + "x" + preview.height,
+            "Preview controls hidden: " + controlsHidden
+        ).joinToString("\n")
+        pendingDiagnosticReport = ClockDiagnostics.createExportReport(this, sessionDetails)
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TITLE, "LiquidClock-DigitLab-Diagnostics-" + System.currentTimeMillis() + ".txt")
+        }
+        try {
+            startActivityForResult(intent, REQUEST_EXPORT_DIAGNOSTICS)
+        } catch (exception: Exception) {
+            pendingDiagnosticReport = null
+            ClockDiagnostics.report("digitlab-diagnostics-export-picker", exception)
+            Toast.makeText(this, "Could not open the diagnostics export destination.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun chooseWallpaper() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -369,6 +412,24 @@ class DigitLabActivity : Activity() {
     @Deprecated("Legacy activity result used for broad platform compatibility.")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_EXPORT_DIAGNOSTICS) {
+            val report = pendingDiagnosticReport
+            pendingDiagnosticReport = null
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            if (report != null && uri != null) {
+                try {
+                    val output = contentResolver.openOutputStream(uri)
+                        ?: throw IllegalStateException("Could not open the selected export destination.")
+                    output.use { it.write(report.toByteArray(Charsets.UTF_8)) }
+                    Toast.makeText(this, "Diagnostic report exported.", Toast.LENGTH_LONG).show()
+                    ClockDiagnostics.record("Digit Lab diagnostics report exported successfully")
+                } catch (exception: Exception) {
+                    ClockDiagnostics.report("digitlab-diagnostics-export-write", exception)
+                    Toast.makeText(this, "Could not write the diagnostic report.", Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
         if (requestCode != REQUEST_WALLPAPER || resultCode != RESULT_OK) return
         val uri: Uri = data?.data ?: return
         try {
@@ -382,6 +443,7 @@ class DigitLabActivity : Activity() {
             preview.invalidate()
             Toast.makeText(this, "Preview image loaded; system wallpaper left unchanged.", Toast.LENGTH_SHORT).show()
         } catch (exception: Exception) {
+            ClockDiagnostics.report("digitlab-wallpaper-import", exception)
             Toast.makeText(this, "Could not load selected image.", Toast.LENGTH_LONG).show()
         }
     }
