@@ -744,7 +744,7 @@ class LiquidWallpaperRenderer(
             float3 glassVolumeInScatter = mix(
                 volumeScatteredTransmission,
                 frostedWallpaper,
-                0.62
+                0.58
             );
             glassTransmitted = mix(
                 glassTransmitted,
