@@ -1564,3 +1564,13 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - CI is expected to run automatically from the feature-branch push for both Android 17 Production and Digit Lab workflows. Record actual run/build numbers and outcomes only after verified.
 - On-device comparison: use identical `10:47`, compressed width, weight 539, Liquid Glass settings and the same blue/yellow diagonal and pink beach wallpapers. Evaluate whether reflections now travel across the face and make the digits feel like thick convex glass; watch for a flat white wash, loss of wallpaper detail, clipped highlights, excessive darkening, or any change to Frosted/Solid.
 - Build #110 is experimental and not promoted. User's iOS 27 screenshot remains the primary visual target. Do not declare success from CI alone; wait for the user's device screenshots.
+
+
+## Build #110 CI and Digit Lab visual review (14 Nov 2026)
+- Both #110 workflows completed successfully on commit `680a004c87b3efcf7a863710a1f96b35771e9daf`: Android 17 Production APK Build #397 and standalone Liquid Clock Digit Lab APK #117.
+- User supplied the #117 Digit Lab device screenshots using the same two comparison wallpapers, `10:47`, Liquid Glass, Compressed width and weight 539.
+- Pink beach: red/pink environmental colour and turquoise water remain visible through the glyphs; the material has not collapsed into a milky Frosted/Solid appearance.
+- Blue/yellow diagonal: warm orange/red transmission remains visible in the lower `0`, while blue/white diagonal detail and shoulder highlights remain strong.
+- Visual review: the added broad front-volume reflection has not yet produced a clearly dramatic increase in continuous front-face reflection. The digits still read substantially as transparent/bevelled outlines in comparison with the user's iOS 27 target, whose faces show broader, more coherent reflected light and a stronger thick-convex-glass impression.
+- Treat #110 as a safe, visually conservative candidate rather than a solved material. Preserve it as a rollback checkpoint; do not promote it as final.
+- Next optical direction: focus on a more spatially varied, continuous front-face reflection field tied to the convex surface normal, combining key and fill environment directions rather than merely increasing edge highlights, global brightness, saturation, bloom or haze. Keep wallpaper transmission and chromatic detail intact; validate Frosted/Solid isolation.
