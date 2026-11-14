@@ -902,7 +902,22 @@ class LiquidWallpaperRenderer(
             float glassFaceLighting = 0.82 +
                 keyDiffuse3D * 0.30 +
                 fillDiffuse3D * 0.16;
-            colour *= mix(glassFaceLighting, 1.0, solidMode);
+            // Preserve the full diffuse lift in dark glass, where it prevents
+            // the transmitted body from reading as a cut-out. Bright wallpaper
+            // already carries enough energy: taper only the positive lift above
+            // neutral there, so cyan/blue colour is less likely to clip white.
+            // This is driven by the local transmitted colour, shared by all glyphs.
+            float glassFaceInputLuma = dot(
+                colour,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float glassFaceLightingHeadroom = 1.0 -
+                smoothstep(0.46, 0.80, glassFaceInputLuma);
+            float glassFaceLightingGain = max(glassFaceLighting - 1.0, 0.0);
+            float glassFaceLightingPreserved =
+                min(glassFaceLighting, 1.0) +
+                glassFaceLightingGain * glassFaceLightingHeadroom;
+            colour *= mix(glassFaceLightingPreserved, 1.0, solidMode);
             float directionalReflectionLuma = dot(
                 directionalEnvironmentReflection,
                 float3(0.2126, 0.7152, 0.0722)
