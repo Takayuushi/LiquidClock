@@ -1529,6 +1529,45 @@ class LiquidWallpaperRenderer(
             colour += float3(1.0, 1.0, 1.0) *
                 solidSheen * solidMode * 0.16;
 
+            // Build #112: luminance-preserving HDR highlight shoulder.
+            // Several independent dielectric/environment lobes can add to
+            // values above display white. A hard final clamp erases their
+            // internal gradation and makes the reflection look like a flat
+            // white patch. Compress only the upper highlight range in linear
+            // sRGB, scaling RGB together so the wallpaper-derived hue remains
+            // stable. Values below the 0.82 knee are left unchanged; dark
+            // transmission and ordinary midtones therefore retain their
+            // existing contrast. The final mix selects the original colour
+            // exactly for Solid/Frosted mode.
+            float3 glassHdrLinear = toLinearSrgb(max(colour, float3(0.0)));
+            float glassHdrLuma = dot(
+                glassHdrLinear,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float glassHdrPeak = max(
+                glassHdrLinear.r,
+                max(glassHdrLinear.g, glassHdrLinear.b)
+            );
+            float glassHdrSignal = max(
+                glassHdrLuma,
+                glassHdrPeak * 0.82
+            );
+            float glassHdrExcess = max(glassHdrSignal - 0.82, 0.0);
+            float glassHdrRolledSignal = 0.82 +
+                0.18 * (1.0 - exp(-glassHdrExcess / 0.26));
+            float glassHdrCompression = min(
+                1.0,
+                glassHdrRolledSignal / max(glassHdrSignal, 0.0001)
+            );
+            float3 glassHdrRolledColour = fromLinearSrgb(
+                glassHdrLinear * glassHdrCompression
+            );
+            colour = mix(
+                glassHdrRolledColour,
+                colour,
+                solidMode
+            );
+
             // The shader replaces the backdrop pixels inside the glyph with
             // their refracted samples. Full mask alpha is required; the glass
             // remains optically clear because its RGB is the warped wallpaper,
