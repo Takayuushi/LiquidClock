@@ -880,61 +880,6 @@ class LiquidWallpaperRenderer(
                 0.0,
                 1.0
             );
-            // Preserve the chromatic component of the sampled environment
-            // when it becomes diffuse in-scattering. Work in linear light:
-            // keep luminance as the neutral energy baseline and gently retain
-            // more of the source colour vector around it. This is deliberately
-            // colour-agnostic, so blue, yellow, red and other saturated regions
-            // receive the same treatment without a hue-specific tint.
-            float microfacetLinearLuma = dot(
-                microfacetTransmissionLinear,
-                float3(0.2126, 0.7152, 0.0722)
-            );
-            float3 microfacetChromaticResidual =
-                microfacetTransmissionLinear -
-                float3(microfacetLinearLuma);
-            float3 chromaticMicrofacetTransmissionLinear = clamp(
-                float3(microfacetLinearLuma) +
-                    microfacetChromaticResidual * 1.10,
-                0.0,
-                1.0
-            );
-            float3 chromaticMicrofacetTransmission = clamp(
-                fromLinearSrgb(chromaticMicrofacetTransmissionLinear),
-                0.0,
-                1.0
-            );
-
-            // Warm environmental light (orange/amber) is easily lost when
-            // blue and white bands dominate the local transport average.
-            // Detect warm chroma from the linear-light bundle and gently
-            // increase its diffuse contribution without tinting neutral or
-            // blue regions. This is a material response to sampled wallpaper
-            // colour, not a fixed orange light or a glyph-specific effect.
-            float warmLightSignal = max(
-                microfacetTransmissionLinear.r -
-                    microfacetTransmissionLinear.b * 0.82,
-                0.0
-            );
-            float warmLightPresence = smoothstep(
-                0.025,
-                0.16,
-                warmLightSignal
-            ) * smoothstep(
-                0.045,
-                0.22,
-                microfacetTransmissionLinear.r
-            );
-            float3 warmLightTransportLinear =
-                microfacetTransmissionLinear *
-                    (1.0 + warmLightPresence * 0.16) +
-                float3(0.010, 0.004, 0.0) * warmLightPresence;
-            float3 warmLightTransport = clamp(
-                fromLinearSrgb(warmLightTransportLinear),
-                0.0,
-                1.0
-            );
-
             // The structure-tensor eigenvector is reliable for a single,
             // coherent band direction, but becomes unstable at crossings,
             // paired edges and locally isotropic texture. Measure tensor
@@ -978,6 +923,59 @@ class LiquidWallpaperRenderer(
                 isotropicFallbackTransmission,
                 microfacetTransmission,
                 stableDirectionWeight
+            );
+
+            // Build #109: derive chromatic energy from the FINAL coherence-
+            // stabilised transmission, not the raw directional bundle above.
+            // This keeps paired-band softening and the isotropic fallback in
+            // the same colour source used by volume and diffuse scattering.
+            // The modest residual lift preserves sampled wallpaper colour in
+            // linear light without adding a hue-specific tint or extra samples.
+            microfacetTransmissionLinear = toLinearSrgb(microfacetTransmission);
+            float microfacetLinearLuma = dot(
+                microfacetTransmissionLinear,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float3 microfacetChromaticResidual =
+                microfacetTransmissionLinear -
+                float3(microfacetLinearLuma);
+            float3 chromaticMicrofacetTransmissionLinear = clamp(
+                float3(microfacetLinearLuma) +
+                    microfacetChromaticResidual * 1.14,
+                0.0,
+                1.0
+            );
+            float3 chromaticMicrofacetTransmission = clamp(
+                fromLinearSrgb(chromaticMicrofacetTransmissionLinear),
+                0.0,
+                1.0
+            );
+
+            // Detect warm environmental energy from the same stabilised
+            // linear-light source. Keep the existing warm response restrained;
+            // only its input is corrected so it follows the final band blend.
+            float warmLightSignal = max(
+                microfacetTransmissionLinear.r -
+                    microfacetTransmissionLinear.b * 0.82,
+                0.0
+            );
+            float warmLightPresence = smoothstep(
+                0.025,
+                0.16,
+                warmLightSignal
+            ) * smoothstep(
+                0.045,
+                0.22,
+                microfacetTransmissionLinear.r
+            );
+            float3 warmLightTransportLinear =
+                microfacetTransmissionLinear *
+                    (1.0 + warmLightPresence * 0.16) +
+                float3(0.010, 0.004, 0.0) * warmLightPresence;
+            float3 warmLightTransport = clamp(
+                fromLinearSrgb(warmLightTransportLinear),
+                0.0,
+                1.0
             );
 
             float microfacetDiffusion = mix(
@@ -1126,7 +1124,7 @@ class LiquidWallpaperRenderer(
             float3 glassDiffuseTransport = mix(
                 warmAtmosphericTransport,
                 chromaticMicrofacetTransmission,
-                0.26
+                0.30
             );
             float glassAtmosphericCoverage = smoothstep(
                 0.10,
