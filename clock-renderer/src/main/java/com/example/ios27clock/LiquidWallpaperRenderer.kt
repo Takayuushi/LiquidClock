@@ -562,13 +562,28 @@ class LiquidWallpaperRenderer(
                 uResolution
             );
             float3 environmentReflection = uWallpaper.eval(reflectionPoint).rgb;
+            // Map the key and fill environment samples along their reflected
+            // light directions, using the same continuous convex normal that
+            // drives the view reflection above. On a front-facing surface this
+            // retains the familiar broad light directions; as the surface turns,
+            // the sampled environment shifts with the actual local orientation.
+            float3 keyReflectedDirection = normalize(
+                -keyLight3D +
+                    2.0 * dot(keyLight3D, glassSurfaceNormal) *
+                        glassSurfaceNormal
+            );
+            float3 fillReflectedDirection = normalize(
+                -fillLight3D +
+                    2.0 * dot(fillLight3D, glassSurfaceNormal) *
+                        glassSurfaceNormal
+            );
             float2 keyEnvironmentPoint = clamp(
-                p - keyLight3D.xy * 42.0,
+                p + keyReflectedDirection.xy * 42.0,
                 float2(0.0),
                 uResolution
             );
             float2 fillEnvironmentPoint = clamp(
-                p + fillLight3D.xy * 34.0,
+                p + fillReflectedDirection.xy * 34.0,
                 float2(0.0),
                 uResolution
             );
@@ -576,11 +591,22 @@ class LiquidWallpaperRenderer(
                 uWallpaper.eval(keyEnvironmentPoint).rgb;
             float3 fillEnvironmentReflection =
                 uWallpaper.eval(fillEnvironmentPoint).rgb;
-            float3 directionalEnvironmentReflection = mix(
-                fillEnvironmentReflection,
-                keyEnvironmentReflection,
-                0.64
+            // Weight the two sampled environment directions by their local
+            // microfacet incidence. This makes the reflected colour balance
+            // respond continuously to surface orientation rather than using a
+            // fixed key/fill percentage for every point on every glyph.
+            float keyEnvironmentWeight = 0.05 +
+                pow(max(dot(glassSurfaceNormal, keyHalfVector), 0.0), 2.0);
+            float fillEnvironmentWeight = 0.05 +
+                pow(max(dot(glassSurfaceNormal, fillHalfVector), 0.0), 2.0);
+            float environmentWeightSum = max(
+                keyEnvironmentWeight + fillEnvironmentWeight,
+                0.001
             );
+            float3 directionalEnvironmentReflection = (
+                keyEnvironmentReflection * keyEnvironmentWeight +
+                fillEnvironmentReflection * fillEnvironmentWeight
+            ) / environmentWeightSum;
 
             // Reuse the eight-direction blur below for both materials:
             // Glass gets a tighter optical diffusion, while Solid retains its
