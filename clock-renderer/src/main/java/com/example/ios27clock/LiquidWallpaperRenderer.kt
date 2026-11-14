@@ -244,7 +244,10 @@ class LiquidWallpaperRenderer(
             float glassVolumeFresnel = 0.04 +
                 0.96 * pow(1.0 - viewCosine, 5.0);
             float horizontalShoulder = smoothstep(0.52, 0.88, abs(glassSurfaceNormal.y));
-            float glassHorizontalHighlight = mix(1.0, 0.58, horizontalShoulder);
+            // Gently relax the horizontal-shoulder attenuation so horizontal
+            // glass surfaces retain more of their directional reflection.
+            // The limiter remains active to prevent broad bars from blooming.
+            float glassHorizontalHighlight = mix(1.0, 0.66, horizontalShoulder);
             // Keep the broad softbox reflection on the rounded shoulder.
             // A front-facing normal has little Fresnel curvature and must not
             // receive a white fill across the whole face.
@@ -744,7 +747,7 @@ class LiquidWallpaperRenderer(
             float3 glassVolumeInScatter = mix(
                 volumeScatteredTransmission,
                 frostedWallpaper,
-                0.58
+                0.62
             );
             glassTransmitted = mix(
                 glassTransmitted,
