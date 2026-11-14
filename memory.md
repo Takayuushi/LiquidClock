@@ -1115,3 +1115,14 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Both Production #408 run `43638958012` and Digit Lab #128 run `43638957989` succeeded from identical renderer SHA `e382c62aa659b9b101596da7e3a325b0cccc0a12`. [Production #408](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43638958012) · [Digit Lab #128](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43638957989)
 - Next refinement: restrained chromatic vibrancy by slightly increasing the directional colour-bearing share in atmospheric in-scatter (currently 38% directional / 62% isotropic), without a global saturation boost or weakening the soft volume. Treat the horizontal arm of `7` as a separate diagnostic: inspect orientation/curvature response along the horizontal stroke, but do not add digit-specific masks or branch logic. Preserve #128 and gains in `0`/`1`. Solid/Frosted remains untouched.
 - Do not stack a broad saturation boost and a horizontal-arm-specific tweak together. Change one shared material parameter at a time and compare on the primary reference wallpaper.
+
+
+## Build #129 candidate — slightly richer directional in-scattering (15 Nov 2026)
+- User approved proceeding with the restrained vibrancy refinement after #128.
+- Renderer commit `b96a9edaf767b0220973291fa23648a09abdd473` — “Slightly increase directional colour in-scattering”.
+- Single parameter change in the shared Liquid Glass renderer: `glassVolumeInScatter` isotropic blend weight `0.62 -> 0.58`, increasing the directional `microfacetTransmission` contribution from 38% to 42%. No global saturation, hue, exposure, brightness, blur, refraction, lens magnification, or geometry changes.
+- Keeps #128 curvature-driven refractive magnification, #127 paired-band softening, #126 5.5px tensor probe and all earlier positive blending work intact. Solid/Frosted remains untouched.
+- Goal: restore a little more wallpaper-colour energy/vibrancy in `0` and `1` without losing the soft atmospheric volume. This is deliberately a small 4 percentage-point adjustment.
+- The horizontal arm of `7` is not directly targeted in this build; inspect it as a diagnostic only. No digit-specific conditions or masks.
+- Production and Digit Lab workflows should trigger from the same renderer commit via branch push; build numbers and run IDs to be appended after checking GitHub Actions.
+- Status: experimental; compare against #128 on the primary black/blue/orange diagonal wallpaper with sample `10:47`, Compressed width, weight 539. Keep #128 as rollback checkpoint; do not stack the #7 horizontal-arm investigation until #129 is visually evaluated.
