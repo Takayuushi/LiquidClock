@@ -1667,3 +1667,9 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Validation should compare #113 with #112 at identical `10:47`, Compressed width, weight 539, on the blue/yellow diagonal and pink beach wallpapers. Focus on whether wallpaper features are optically concentrated rather than merely brighter, whether the `0` retains warm/cool separation, whether `1` retains foliage/white scattering, and whether `4`/`7` preserve water/sky colour without white clipping.
 - Production and Digit Lab workflows should trigger automatically from this renderer commit. Record exact workflow run IDs, build numbers, SHA, completion state and artifact availability only after verification.
 - #113 is experimental and not promoted. #112 remains its immediate visual rollback/comparison checkpoint; accepted Build #93 and the frozen Frosted Glass design remain protected.
+
+
+## Attribution correction — roadmap ownership (14 Nov 2026)
+- Correction: the five-step development sequence (HDR refinement → ray-convergence caustics → GGX/environment reflection integration → multi-scale light transport → final material balancing) was proposed by the assistant in its earlier response. The user did not present it as their own sequence; they replied “Ok go ahead” to authorise proceeding with the assistant-proposed plan.
+- Describe this accurately in future: “the sequence I proposed and you approved,” not “your sequence” or “the sequence you shared.”
+- The user retains decision authority and can revise the order or direction at any point. Do not imply the user originated technical recommendations that were assistant-generated.
