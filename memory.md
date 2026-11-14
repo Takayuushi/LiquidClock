@@ -1060,3 +1060,12 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Hypothesis only; not visually validated. Possible downside: a broader probe may smooth the orientation estimate but may also misread rapidly changing wallpaper structures. Compare directly against #125, especially 7's long stroke, while confirming 0/1 colour blending is retained.
 - Production #406 run `43636836295` and Digit Lab #126 run `43636836273` automatically triggered from identical SHA `114f38e0c7b910eb0fd13a2611d856726278bc8e`; both queued at last check. [Production #406](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43636836295) · [Digit Lab #126](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43636836273)
 - Keep #125 as the positive visual checkpoint until #126 is tested. Do not stack another parameter change before the user evaluates #126.
+
+
+## Build #126 visual review — broader tensor probe improves blending across several glyphs (15 Nov 2026)
+- User tested Digit Lab #126 on the primary black/blue/orange diagonal wallpaper, sample `10:47`, Compressed width, weight 539, Liquid Glass.
+- User assessment: the `7` shows a little improvement; the largest improvements are on `0`, `1`, and even `4`. Specifically, on the `1`, the black and white bands are no longer visibly separate.
+- Visual interpretation: the broader 5.5px structure-tensor probe appears to provide a more representative cross-band orientation estimate across the glyphs. The result supports the working hypothesis, but does not yet establish that the 7's remaining bands are solved.
+- Preserve #126 as a positive checkpoint. Do not revert the 5.5px probe. Keep #125 as the immediate comparison baseline and earlier accepted blending checkpoint.
+- Both Production #406 (run `43636836295`) and Digit Lab #126 (run `43636836273`) completed successfully from identical source SHA `114f38e0c7b910eb0fd13a2611d856726278bc8e`. [Production #406](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43636836295) · [Digit Lab #126](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43636836273)
+- Next step: preserve #126's broader orientation estimate and investigate only a small follow-up to the remaining dark-band separation on the `7`. Do not increase global blur, transmission weights, or probe radius blindly; compare the reference and inspect how the local tensor behaves along that stroke. Maintain the improvements to `0`, `1`, and `4`. Same shared renderer; no glyph-specific rules. Solid/Frosted remains protected.
