@@ -1022,8 +1022,22 @@ class LiquidWallpaperRenderer(
             );
             float glassRimLighting = glassRim *
                 pow(max(dot(glassSurfaceNormal, keyLight3D), 0.0), 1.35) * glassHorizontalHighlight;
-            colour += float3(0.92, 0.97, 1.0) *
+            // Let the broad shoulder reflection carry the colour of the
+            // environment actually seen by the convex reflected ray, rather
+            // than laying a fixed cool-white wash over the transmitted face.
+            // Limit the additive return by per-channel headroom so it sits on
+            // the coloured glass body without clipping it toward white.
+            float glassAreaReflectionWeight =
                 glassAreaReflection * (1.0 - solidMode) * 0.96;
+            float3 glassAreaReflectionEnergy =
+                chromaticEnvironmentReflection * glassAreaReflectionWeight;
+            float3 glassAreaReflectionHeadroom =
+                max(float3(1.0) - colour, float3(0.0));
+            float3 glassAreaReflectionContribution = min(
+                glassAreaReflectionEnergy,
+                glassAreaReflectionHeadroom * 0.90
+            );
+            colour += glassAreaReflectionContribution;
             colour += float3(0.98, 0.99, 1.0) *
                 glassKeyGlint * (1.0 - solidMode) * 1.28;
             colour += float3(0.68, 0.82, 1.0) *
