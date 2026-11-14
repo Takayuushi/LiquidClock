@@ -1673,3 +1673,10 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Correction: the five-step development sequence (HDR refinement → ray-convergence caustics → GGX/environment reflection integration → multi-scale light transport → final material balancing) was proposed by the assistant in its earlier response. The user did not present it as their own sequence; they replied “Ok go ahead” to authorise proceeding with the assistant-proposed plan.
 - Describe this accurately in future: “the sequence I proposed and you approved,” not “your sequence” or “the sequence you shared.”
 - The user retains decision authority and can revise the order or direction at any point. Do not imply the user originated technical recommendations that were assistant-generated.
+
+
+## Build #113 CI result (14 Nov 2026)
+- Both workflows completed successfully on exact renderer commit `a8753cd9610405eb29b6d9efb1a6149278d9a778`.
+- Production Android 17 APK Build #400, run `43625851661`: conclusion `success`; artifact `iOS27-LiquidClock-Android17-debug`, artifact ID `14125204484`, not expired.
+- Liquid Clock Digit Lab APK #120, run `43625851652`: conclusion `success`; artifact `liquid-clock-digit-lab-debug`, artifact ID `14125614635`, not expired.
+- These are build/packaging results only. They do not establish that the second-order Jacobian improves the on-device optical result. Await user screenshots of #120 before selecting another shader experiment.
