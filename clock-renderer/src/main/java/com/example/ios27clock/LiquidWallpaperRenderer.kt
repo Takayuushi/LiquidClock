@@ -799,10 +799,50 @@ class LiquidWallpaperRenderer(
             // #56's 82% isotropic target over-averaged saturated orange/blue
             // energy; 62% keeps the soft environment dominant while allowing
             // the refracted wallpaper structure to remain chromatically legible.
-            float3 glassVolumeInScatter = mix(
+            // Keep the accepted #135 volume luminance and atmospheric softness,
+            // but retain a little more of the directional colour where it carries
+            // genuinely different chroma from the local blurred environment.
+            // Separate luma from chroma so this refinement does not brighten the
+            // face or undo #135's luminance-aware lighting response.
+            float volumeTransmissionLuma = dot(
                 volumeScatteredTransmission,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float frostedWallpaperLuma = dot(
                 frostedWallpaper,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float3 volumeTransmissionChroma =
+                volumeScatteredTransmission - float3(volumeTransmissionLuma);
+            float3 frostedWallpaperChroma =
+                frostedWallpaper - float3(frostedWallpaperLuma);
+            float chromaticSeparation = length(
+                volumeTransmissionChroma - frostedWallpaperChroma
+            );
+            float chromaticRetention = smoothstep(
+                0.025,
+                0.16,
+                chromaticSeparation
+            );
+            float glassVolumeIsotropicWeight = mix(
+                0.62,
+                0.58,
+                chromaticRetention
+            );
+            float glassVolumeBaseLuma = mix(
+                volumeTransmissionLuma,
+                frostedWallpaperLuma,
                 0.62
+            );
+            float3 glassVolumeChroma = mix(
+                volumeTransmissionChroma,
+                frostedWallpaperChroma,
+                glassVolumeIsotropicWeight
+            );
+            float3 glassVolumeInScatter = clamp(
+                float3(glassVolumeBaseLuma) + glassVolumeChroma,
+                0.0,
+                1.0
             );
             glassTransmitted = mix(
                 glassTransmitted,
