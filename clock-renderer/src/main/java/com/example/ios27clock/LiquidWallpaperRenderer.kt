@@ -747,7 +747,7 @@ class LiquidWallpaperRenderer(
             float glassDarkness = 1.0 - smoothstep(0.08, 0.24, refractedLuma);
             float glassNearbyLight = smoothstep(0.10, 0.32, blurredWallpaperLuma);
             float glassBounceStrength =
-                0.24 * glassDarkness * glassNearbyLight;
+                0.26 * glassDarkness * glassNearbyLight;
             float3 brightGlassBounce = clamp(
                 frostedWallpaper * 1.44 + float3(0.012, 0.014, 0.022),
                 0.0,
