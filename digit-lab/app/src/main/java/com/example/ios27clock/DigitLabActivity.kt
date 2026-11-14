@@ -100,7 +100,8 @@ class DigitLabActivity : Activity() {
 
         sampleClockSource.sampleText = DEFAULT_SAMPLE
         ClockDiagnostics.record(
-            "Digit Lab session start: material=" + if (glassMode) "Liquid Glass" else "Frosted Glass" +
+            "Digit Lab session start: material=" +
+                (if (glassMode) "Liquid Glass" else "Frosted Glass") +
                 ", style=" + fontStyle + ", weight=" + fontWeight
         )
         renderer = LiquidWallpaperRenderer(
