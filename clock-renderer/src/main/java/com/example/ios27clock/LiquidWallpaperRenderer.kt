@@ -572,6 +572,42 @@ class LiquidWallpaperRenderer(
                 center * 0.06 +
                 (softNearA + softNearB) * 0.24 +
                 (softFarA + softFarB) * 0.23;
+
+            // Stabilise paired high-contrast rails: when the local RGB tensor
+            // has an ambiguous direction, or the wallpaper contains strong
+            // adjacent bands, blend a restrained amount of the existing
+            // colour-preserving broad environment into the directional bundle.
+            // This is shared per-pixel transport, not a glyph-specific rule.
+            float tensorTrace = max(tensorXX + tensorYY, 0.0001);
+            float tensorCoherence = clamp(
+                tensorDiscriminant / tensorTrace,
+                0.0,
+                1.0
+            );
+            float directionalConfidence = smoothstep(
+                0.12,
+                0.55,
+                tensorCoherence
+            );
+            float3 isotropicFallbackTransmission = mix(
+                center,
+                frostedWallpaper,
+                0.72
+            );
+            float pairedBandSoftening = mix(
+                1.0,
+                0.72,
+                bandContrast
+            );
+            float stableDirectionWeight =
+                mix(0.82, 1.0, directionalConfidence) *
+                pairedBandSoftening;
+            microfacetTransmission = mix(
+                isotropicFallbackTransmission,
+                microfacetTransmission,
+                stableDirectionWeight
+            );
+
             float microfacetDiffusion = mix(
                 0.42,
                 0.96,
