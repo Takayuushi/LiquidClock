@@ -1184,3 +1184,12 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Digit Lab #133 run `43643730588` and Production #413 run `43643730630` automatically triggered from identical renderer SHA `36122675758eb269f1990bd462abc10e4e6d0078`; queued when recorded. [Digit Lab #133](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43643730588) · [Production #413](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43643730630)
 - Important runtime validation: CI compilation alone did not catch the AGSL error. After installing Digit Lab #133, launch it and check that liquid glass renders rather than the white fallback. If successful, retrieve the same filtered Logcat command to verify there is no new `agsl-shader-initialization` error, then compare its visual output with #130 on the primary black/blue/orange wallpaper. Do not claim the shader fix works until confirmed on-device.
 - Preserve #130 as the last visually valid baseline. #132 did not produce a valid visual result and must not be treated as an aesthetic candidate.
+
+
+## Build #133 / Production #413 CI result (15 Nov 2026)
+- Both workflows for shader-compatibility fix commit `36122675758eb269f1990bd462abc10e4e6d0078` completed successfully on `experiment/warm-transmission-132`.
+- Digit Lab #133: run `43643730588`, artifact `liquid-clock-digit-lab-debug` ID `14133411022` (not expired when checked; expires 14 Dec 2026).
+- Production #413: run `43643730630`, artifact `iOS27-LiquidClock-Android17-debug` ID `14132648517` (not expired when checked; expires 28 Nov 2026).
+- Both jobs passed the official Apple SF Pro asset preparation, persistent debug signing-key restore, APK build and artifact upload steps. Both artifacts were built from the same renderer SHA above.
+- CI success does not validate AGSL runtime initialization. The required next test is to install and launch Digit Lab #133, confirm Liquid Glass renders rather than the white fallback, and check Logcat for absence of the prior `pow(float3, float)` / `agsl-shader-initialization` failure.
+- If runtime initialization succeeds, compare #133 against the last visually valid #130 using the primary black/blue/orange diagonal wallpaper, `10:47`, Liquid Glass, Compressed width and weight 539. Check warm/orange transmission through the lower `0`, while preserving the white/blue reflection on `4` and the non-milky face. Do not promote #132 or change renderer parameters before this device review.
