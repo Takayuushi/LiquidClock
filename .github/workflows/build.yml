@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'feature/**'
+      - 'experiment/**'
     paths:
       - 'app/**'
       - 'clock-renderer/**'
@@ -241,11 +242,14 @@ jobs:
 
           echo "Official Apple SF Pro clock subset and display faces installed into build assets."
 
-      - name: Restore persistent debug signing key
+      - name: Restore persistent production debug signing key
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: ios27-liquidclock-debug-signing-${{ github.ref_name }}-v1
+          # Reuse the established production app certificate created on the
+          # original development branch. Experimental APKs must update the
+          # installed app without a signing-certificate mismatch.
+          key: ios27-liquidclock-debug-signing-feature/live-wallpaper-big-clock-v1
 
       - name: Initialise persistent debug signing key
         shell: bash
