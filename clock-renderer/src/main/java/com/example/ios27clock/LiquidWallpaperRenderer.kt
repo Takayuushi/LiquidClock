@@ -531,7 +531,10 @@ class LiquidWallpaperRenderer(
             // Diffuse across (not along) high-contrast wallpaper bands.
             // The larger footprint merges paired streaks into a continuous
             // glass volume, while low-contrast areas retain sharper detail.
-            float diffusionRadius = mix(24.0, 34.0, bandContrast);
+            // Slightly widen only the across-band footprint where the wallpaper
+            // tensor detects strong parallel streaks. This targets residual
+            // dark-line separation without increasing the whole-volume haze.
+            float diffusionRadius = mix(24.0, 40.0, bandContrast);
             float2 nearDiffusionOffset = diffusionAxis * diffusionRadius * 0.62;
             float2 farDiffusionOffset = diffusionAxis * diffusionRadius * 1.38;
             float3 softNearA = uWallpaper.eval(clamp(
