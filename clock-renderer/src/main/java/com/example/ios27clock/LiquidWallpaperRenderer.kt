@@ -785,7 +785,7 @@ class LiquidWallpaperRenderer(
                 0.58 * smoothstep(0.42, 0.78, environmentReflectionLuma);
             float3 chromaticEnvironmentReflection = clamp(
                 float3(environmentReflectionLuma) +
-                    environmentReflectionChroma * 1.28,
+                    environmentReflectionChroma * 1.36,
                 0.0,
                 1.0
             );
