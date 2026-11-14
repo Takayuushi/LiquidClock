@@ -1503,3 +1503,19 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Do not promote automatically. User evaluation determines whether the normal-driven reflection model is retained or revised.
 
 
+
+
+
+## Build #107 renderer candidate — path-length-driven volumetric scattering (14 Nov 2026)
+- Isolated branch: `feature/volumetric-light-transport-107`, created directly from the user-reviewed Build #106 branch `feature/normal-driven-reflections-106`. Build #106 remains unchanged.
+- Renderer commit: `7019964eefc7902d2baf60d603c81a8717344edc`.
+- The previous fixed in-volume scatter coefficient (0.28) is replaced by a Beer-Lambert path accumulation: `1 - exp(-sigma_s * interiorPathLength)`.
+- Interior path length uses the existing convex-body optical thickness (`glassOpticalThickness`) divided by the absolute z component of the refracted internal ray, with a cosine floor of 0.55 to keep grazing paths numerically bounded.
+- Scattering coefficient is `0.0078`, calibrated so a roughly 42 px near-normal path produces approximately the former 0.28 scattering amount. This makes the change primarily a geometry/path-dependent distribution rather than a blanket increase in haze.
+- Existing illumination activation, white-highlight protection, volume mask, colour-bearing scattering target, atmospheric scattering/bloom, direct-transmission/scattering-residual separation, curved ray transport and normal-driven reflections are unchanged.
+- No additional texture reads, uniforms, render passes, glyph masks, per-digit/per-region tuning, or wallpaper presets. The same shared material calculation applies across all glyphs and clock timings.
+- Frosted/Solid path is not intentionally modified; the new coefficient feeds the existing Liquid Glass volume-scatter mix.
+- Experimental and awaiting CI/on-device validation. Compare #107 against #106 on blue/yellow diagonal, pink beach and red-nebula wallpapers with identical settings. Check whether the volume feels more substantial while retaining distinct colours and sharp transmitted detail; watch for cloudy interiors, excessive darkening, colour casts, or amplified highlights.
+- The Digit Lab empty-start usability fix remains isolated on `feature/digit-lab-empty-start-107`; it is not included in this renderer branch.
+
+
