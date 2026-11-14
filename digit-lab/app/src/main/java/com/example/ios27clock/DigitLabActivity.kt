@@ -37,7 +37,7 @@ import kotlin.math.hypot
 class DigitLabActivity : Activity() {
     companion object {
         private const val REQUEST_WALLPAPER = 4101
-        private const val DEFAULT_SAMPLE = "0123456789"
+        private const val DEFAULT_SAMPLE = ""
         private const val MAX_SAMPLE_LENGTH = 10
     }
 
@@ -184,7 +184,7 @@ class DigitLabActivity : Activity() {
             textSize = 18f
             setTextColor(Color.WHITE)
             setHintTextColor(0xFF9AA9BC.toInt())
-            hint = "00:00 or 0123456789"
+            hint = "Enter digits or time"
             setPadding(dp(12), 0, dp(12), 0)
             background = roundedBackground(0xFF182438.toInt(), dp(12))
             // Use a full text keyboard so the colon key is directly accessible.
@@ -195,7 +195,6 @@ class DigitLabActivity : Activity() {
                     if (source.all { it in '0'..'9' || it == ':' }) null else ""
                 }
             )
-            setText(DEFAULT_SAMPLE)
             gravity = Gravity.CENTER_VERTICAL
         }
         sampleRow.addView(sampleInput, LinearLayout.LayoutParams(0, dp(46), 1f))
@@ -350,12 +349,13 @@ class DigitLabActivity : Activity() {
     }
 
     private fun isValidSample(value: String): Boolean =
-        value.isNotEmpty() &&
-            value.length <= MAX_SAMPLE_LENGTH &&
+        value.length <= MAX_SAMPLE_LENGTH &&
             value.all { it in '0'..'9' || it == ':' } &&
-            value.first() != ':' &&
-            value.last() != ':' &&
-            !value.contains("::")
+            (value.isEmpty() || (
+                value.first() != ':' &&
+                    value.last() != ':' &&
+                    !value.contains("::")
+            ))
 
     private fun chooseWallpaper() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
