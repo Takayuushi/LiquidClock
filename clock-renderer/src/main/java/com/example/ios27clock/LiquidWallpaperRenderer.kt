@@ -1365,26 +1365,55 @@ class LiquidWallpaperRenderer(
                 glassCoreVolume,
                 glassEdgeVolume * 0.82
             );
-            float glassFrontSoftboxReflection =
+            // Build #111: use two broad environment lobes instead of one
+            // key-only additive sheen. Their independent half-vectors make
+            // the reflected field shift smoothly across the convex cap, while
+            // the sampled key/fill wallpaper colours preserve the environment
+            // rather than painting a fixed white stripe onto the digits.
+            float glassFrontKeyReflection =
                 pow(
                     max(dot(glassSurfaceNormal, keyHalfVector), 0.0),
-                    2.2
+                    2.0
                 ) *
-                (0.16 + 0.10 * smoothstep(
+                (0.22 + 0.10 * smoothstep(
                     0.04,
                     0.34,
                     glassProfileSlope
-                )) *
-                glassFrontVolumeMask *
-                glassHorizontalHighlight;
-            float3 glassFrontEnvironmentColour = mix(
-                directionalEnvironmentReflection,
-                glassBrightBloom,
-                0.28
+                ));
+            float glassFrontFillReflection =
+                pow(
+                    max(dot(glassSurfaceNormal, fillHalfVector), 0.0),
+                    2.4
+                ) *
+                (0.18 + 0.08 * smoothstep(
+                    0.04,
+                    0.34,
+                    glassProfileSlope
+                ));
+            float glassFrontReflectionSum = max(
+                glassFrontKeyReflection + glassFrontFillReflection,
+                0.001
             );
-            colour += glassFrontEnvironmentColour *
-                glassFrontSoftboxReflection *
-                (1.0 - solidMode) * 0.44;
+            float3 glassFrontEnvironmentColour = (
+                keyEnvironmentReflection * glassFrontKeyReflection +
+                fillEnvironmentReflection * glassFrontFillReflection
+            ) / glassFrontReflectionSum;
+            glassFrontEnvironmentColour = mix(
+                glassFrontEnvironmentColour,
+                glassBrightBloom,
+                0.20
+            );
+            float glassFrontReflectionWeight = clamp(
+                (glassFrontKeyReflection + glassFrontFillReflection) *
+                    glassFrontVolumeMask * glassHorizontalHighlight * 0.48,
+                0.0,
+                0.22
+            );
+            colour = mix(
+                colour,
+                glassFrontEnvironmentColour,
+                glassFrontReflectionWeight * (1.0 - solidMode)
+            );
 
             // #96 replaces the previous curvature-only additive caustic
             // glint with a Jacobian-based concentration of transmitted
