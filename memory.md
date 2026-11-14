@@ -1574,3 +1574,17 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Visual review: the added broad front-volume reflection has not yet produced a clearly dramatic increase in continuous front-face reflection. The digits still read substantially as transparent/bevelled outlines in comparison with the user's iOS 27 target, whose faces show broader, more coherent reflected light and a stronger thick-convex-glass impression.
 - Treat #110 as a safe, visually conservative candidate rather than a solved material. Preserve it as a rollback checkpoint; do not promote it as final.
 - Next optical direction: focus on a more spatially varied, continuous front-face reflection field tied to the convex surface normal, combining key and fill environment directions rather than merely increasing edge highlights, global brightness, saturation, bloom or haze. Keep wallpaper transmission and chromatic detail intact; validate Frosted/Solid isolation.
+
+
+## Build #111 candidate — dual environment front-face reflections (14 Nov 2026)
+- Isolated branch: `feature/dual-environment-face-reflections-111`, based on the user-reviewed #110 branch after its Production and Digit Lab workflows both passed and #117 screenshots were reviewed.
+- Build #110 remains unchanged as the immediate rollback checkpoint. Accepted #93 baseline remains unchanged.
+- Renderer commit: `9c7854894811218ea3b05e1c746685b5419d7a0c` — “Build #111: shape front-face reflections with dual environment lobes”.
+- #110 review found that its single broad key-only environment lobe was too conservative to create a clearly visible, spatially varied front-face reflection field.
+- #111 replaces that additive key-only lobe with two broad reflection lobes driven independently by the existing key and fill half-vectors and their already-sampled key/fill environment wallpaper colours.
+- The two lobe weights are combined into a bounded reflection blend (maximum 0.22) over the shared convex front-volume mask. The reflection colour remains wallpaper-derived, with a small existing bright-bloom contribution; no fixed white stripe or hue-specific tint is introduced.
+- No new wallpaper/SDF samples, uniforms, render passes, dependencies, per-digit rules, time rules, screen-region rules or wallpaper presets. Existing refraction, path integration, chroma transport, scattering, geometry, edge glints and Frosted/Solid source path are unchanged. The new blend is gated by `(1.0 - solidMode)`.
+- Goal: make the front face read as a continuous, thick convex reflective glass surface by allowing key and fill environment reflections to vary across the same surface normal field, without sacrificing transmitted wallpaper detail.
+- CI should trigger on push for Production and Digit Lab. Record run/build IDs and outcomes only after verified.
+- On-device validation: identical `10:47`, Compressed width, weight 539, Liquid Glass, and blue/yellow diagonal plus pink beach wallpapers. Compare #111 against #117/#110. Look for broad but non-uniform environmental reflections crossing the face; ensure the digits do not become a flat opaque wash, white stripe, or return to edge-only outlining. Confirm pink/turquoise and orange/blue wallpaper transmission remains legible and Frosted/Solid is unchanged.
+- #111 is experimental and not promoted. Keep #110 as rollback checkpoint pending user visual review.
