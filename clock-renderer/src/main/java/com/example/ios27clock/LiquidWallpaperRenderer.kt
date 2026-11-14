@@ -1352,6 +1352,40 @@ class LiquidWallpaperRenderer(
                 glassAreaSourcePresence *
                 (1.0 - solidMode) * 0.16;
 
+            // Build #110: broad front-volume environment reflection.
+            // The existing area lobe is shoulder-gated, which can leave the
+            // crown of a wide stroke reading as a transmissive outline. This
+            // lower-frequency lobe carries the sampled environment across
+            // the convex front face as well as its rounded shoulder. Its mask
+            // is derived from the shared edge/core volume union, and its
+            // half-vector response follows the same height-field normal.
+            // Reuse the already sampled directional environment; no extra
+            // wallpaper reads or glyph-specific highlight coordinates.
+            float glassFrontVolumeMask = max(
+                glassCoreVolume,
+                glassEdgeVolume * 0.82
+            );
+            float glassFrontSoftboxReflection =
+                pow(
+                    max(dot(glassSurfaceNormal, keyHalfVector), 0.0),
+                    2.2
+                ) *
+                (0.16 + 0.10 * smoothstep(
+                    0.04,
+                    0.34,
+                    glassProfileSlope
+                )) *
+                glassFrontVolumeMask *
+                glassHorizontalHighlight;
+            float3 glassFrontEnvironmentColour = mix(
+                directionalEnvironmentReflection,
+                glassBrightBloom,
+                0.28
+            );
+            colour += glassFrontEnvironmentColour *
+                glassFrontSoftboxReflection *
+                (1.0 - solidMode) * 0.44;
+
             // #96 replaces the previous curvature-only additive caustic
             // glint with a Jacobian-based concentration of transmitted
             // wallpaper radiance. This avoids stacking another bright rim.
