@@ -880,6 +880,30 @@ class LiquidWallpaperRenderer(
                 0.0,
                 1.0
             );
+            // Preserve the chromatic component of the sampled environment
+            // when it becomes diffuse in-scattering. Work in linear light:
+            // keep luminance as the neutral energy baseline and gently retain
+            // more of the source colour vector around it. This is deliberately
+            // colour-agnostic, so blue, yellow, red and other saturated regions
+            // receive the same treatment without a hue-specific tint.
+            float microfacetLinearLuma = dot(
+                microfacetTransmissionLinear,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float3 microfacetChromaticResidual =
+                microfacetTransmissionLinear -
+                float3(microfacetLinearLuma);
+            float3 chromaticMicrofacetTransmissionLinear = clamp(
+                float3(microfacetLinearLuma) +
+                    microfacetChromaticResidual * 1.10,
+                0.0,
+                1.0
+            );
+            float3 chromaticMicrofacetTransmission = clamp(
+                fromLinearSrgb(chromaticMicrofacetTransmissionLinear),
+                0.0,
+                1.0
+            );
 
             // Warm environmental light (orange/amber) is easily lost when
             // blue and white bands dominate the local transport average.
@@ -1066,7 +1090,7 @@ class LiquidWallpaperRenderer(
                 smoothstep(0.12, 0.60, glassVolumeRegion);
             float3 volumeScatteredTransmission = clamp(
                 mix(
-                    microfacetTransmission,
+                    chromaticMicrofacetTransmission,
                     warmLightTransport,
                     warmLightPresence * 0.42
                 ) * 1.10 +
@@ -1095,10 +1119,14 @@ class LiquidWallpaperRenderer(
                 warmLightTransport,
                 warmLightPresence * 0.30
             );
+            // Let the diffuse layer carry a little more of the same
+            // luminance-preserving chromatic source. This counters colour
+            // dilution during broad in-scattering without adding a separate
+            // orange/blue rule or changing the atmospheric coverage.
             float3 glassDiffuseTransport = mix(
                 warmAtmosphericTransport,
-                microfacetTransmission,
-                0.18
+                chromaticMicrofacetTransmission,
+                0.26
             );
             float glassAtmosphericCoverage = smoothstep(
                 0.10,
