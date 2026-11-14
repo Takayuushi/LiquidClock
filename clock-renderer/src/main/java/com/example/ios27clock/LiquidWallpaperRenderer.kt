@@ -655,12 +655,14 @@ class LiquidWallpaperRenderer(
             // Work in linear light so the correction follows optical energy,
             // not display-encoded channel values. Neutral white is rejected
             // by requiring red to exceed both green and blue.
+            float3 microfacetTransmissionLinearHigh = float3(
+                pow((microfacetTransmission.r + 0.055) / 1.055, 2.4),
+                pow((microfacetTransmission.g + 0.055) / 1.055, 2.4),
+                pow((microfacetTransmission.b + 0.055) / 1.055, 2.4)
+            );
             float3 microfacetTransmissionLinear = mix(
                 microfacetTransmission / 12.92,
-                pow(
-                    (microfacetTransmission + 0.055) / 1.055,
-                    2.4
-                ),
+                microfacetTransmissionLinearHigh,
                 step(float3(0.04045), microfacetTransmission)
             );
             float warmLightSignal = max(
@@ -684,12 +686,14 @@ class LiquidWallpaperRenderer(
                 microfacetTransmissionLinear *
                     (1.0 + warmLightPresence * 0.16) +
                 float3(0.010, 0.004, 0.0) * warmLightPresence;
+            float3 warmLightTransportSrgbHigh = float3(
+                1.055 * pow(max(warmLightTransportLinear.r, 0.0), 0.4166667) - 0.055,
+                1.055 * pow(max(warmLightTransportLinear.g, 0.0), 0.4166667) - 0.055,
+                1.055 * pow(max(warmLightTransportLinear.b, 0.0), 0.4166667) - 0.055
+            );
             float3 warmLightTransport = mix(
                 warmLightTransportLinear * 12.92,
-                1.055 * pow(
-                    max(warmLightTransportLinear, float3(0.0)),
-                    0.4166667
-                ) - 0.055,
+                warmLightTransportSrgbHigh,
                 step(
                     float3(0.0031308),
                     warmLightTransportLinear
