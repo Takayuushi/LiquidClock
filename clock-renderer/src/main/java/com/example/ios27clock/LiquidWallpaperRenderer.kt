@@ -445,17 +445,30 @@ class LiquidWallpaperRenderer(
                 refractedRay.xy * glassOpticalThickness * glassEdgePull +
                 glassCurvatureWarp;
 
-            // Build #96: estimate refracted-ray convergence from the Jacobian
-            // of the local screen-space ray map. For this near-normal view,
-            // the trace of the convex height-field Hessian is the first-order
-            // divergence of the refracted ray field. A negative divergence
-            // means neighbouring rays converge and concentrate transmitted
-            // wallpaper radiance. This is an optical energy response, not an
-            // additive highlight.
-            float glassCurvatureTrace = glassCurvatureX + glassCurvatureY;
+            // Build #113: revisit #96 with a diagonal second-order
+            // ray-map Jacobian. The first-order trace approximation omitted
+            // the product of the independent horizontal and vertical
+            // curvature terms. This diagonal determinant approximation
+            // restores that cross-axis interaction without requiring mixed
+            // derivative samples or a new wallpaper/SDF lookup.
+            // Each axis is bounded before multiplication; the final area
+            // Jacobian remains one-sided so diverging rays do not darken the
+            // transmitted image. This is still a local screen-space
+            // approximation, not a full ray-traced caustic solver.
+            float glassJacobianScale =
+                glassOpticalThickness * 0.34 * glassEdgePull;
+            float glassRayJacobianX = clamp(
+                1.0 + glassJacobianScale * glassCurvatureX,
+                0.84,
+                1.16
+            );
+            float glassRayJacobianY = clamp(
+                1.0 + glassJacobianScale * glassCurvatureY,
+                0.84,
+                1.16
+            );
             float glassRayJacobian = clamp(
-                1.0 + glassOpticalThickness * 0.34 *
-                    glassCurvatureTrace * glassEdgePull,
+                glassRayJacobianX * glassRayJacobianY,
                 0.72,
                 1.0
             );
