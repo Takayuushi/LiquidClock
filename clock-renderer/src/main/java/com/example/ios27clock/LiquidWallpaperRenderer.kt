@@ -832,10 +832,20 @@ class LiquidWallpaperRenderer(
                 0.58,
                 chromaticRetention
             );
+            // Let strong, narrow wallpaper bands scatter a little more
+            // of their luminance into the broad glass environment. Keep the
+            // chroma blend independent below, so this smooths stripe contrast
+            // without washing out the orange/cyan colour carried by transmission.
+            // Low-contrast wallpaper retains the existing 62% isotropic balance.
+            float glassVolumeLumaIsotropicWeight = mix(
+                0.62,
+                0.68,
+                bandContrast
+            );
             float glassVolumeBaseLuma = mix(
                 volumeTransmissionLuma,
                 frostedWallpaperLuma,
-                0.62
+                glassVolumeLumaIsotropicWeight
             );
             float3 glassVolumeChroma = mix(
                 volumeTransmissionChroma,
