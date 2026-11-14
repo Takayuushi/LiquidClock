@@ -37,7 +37,7 @@ import kotlin.math.hypot
 class DigitLabActivity : Activity() {
     companion object {
         private const val REQUEST_WALLPAPER = 4101
-        private const val DEFAULT_SAMPLE = "0123456789"
+        private const val DEFAULT_SAMPLE = ""
         private const val MAX_SAMPLE_LENGTH = 10
     }
 
@@ -195,7 +195,6 @@ class DigitLabActivity : Activity() {
                     if (source.all { it in '0'..'9' || it == ':' }) null else ""
                 }
             )
-            setText(DEFAULT_SAMPLE)
             gravity = Gravity.CENTER_VERTICAL
         }
         sampleRow.addView(sampleInput, LinearLayout.LayoutParams(0, dp(46), 1f))
