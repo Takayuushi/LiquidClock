@@ -989,3 +989,13 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Workflow commit: `bfd0ed600af649dd5ab7eeffb3945c1509f9eb1b` — “Enable experiment Digit Lab builds with shared signing”.
 - Digit Lab workflow #122 run `43630645742` started on exact head SHA `bfd0ed600af649dd5ab7eeffb3945c1509f9eb1b`. JDK/Android SDK setup succeeded; at last check the official SF Pro asset preparation step was running, while signing restore, APK build and artifact upload had not yet completed. Do not report APK readiness or signing-cache hit until the workflow confirms them.
 - The Production workflow is intentionally not triggered: this change affects only the standalone Digit Lab activity and its workflow.
+
+
+## Production APK build enabled for isolated #56 experiment branch (15 Nov 2026)
+- User explicitly authorized running the main Production build on the separate `experiment/soft-transmission-from-build-56` branch.
+- Updated `.github/workflows/build.yml` to include `experiment/**` in push triggers; workflow path filters already include `clock-renderer/**` and workflow file itself.
+- Preserved the Production app's established signing identity by configuring the experiment workflow to restore the exact existing cache key `ios27-liquidclock-debug-signing-feature/live-wallpaper-big-clock-v1`. This is the Production app signing key, separate from Digit Lab's signing identity. Do not generate a fresh branch-specific Production key for this branch.
+- Workflow commit: `b0866d3f56b90dda18050c5f43ce2c4f90ee9a14` — “Enable isolated experiment branch production APK builds”.
+- Production Android 17 APK build #402 started automatically from exact commit `b0866d3f56b90dda18050c5f43ce2c4f90ee9a14`, run ID `43631378651`. At last check it was in progress at Android SDK installation; no compile or artifact result yet. [Actions #402](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43631378651)
+- Digit Lab build #122 completed successfully from commit `bfd0ed600af649dd5ab7eeffb3945c1509f9eb1b`, run ID `43630645742`, artifact ID `14127956694`, size 9,590,074 bytes, expires 14 Dec 2026. It restored the shared Digit Lab signing key, compiled, and uploaded the APK successfully. [Actions #122](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43630645742)
+- Note: Production #402 includes the #56 renderer candidate from commit `0fdb8892ff23c6c6019a65254efe407145bc22a6` plus the Digit Lab UI fix and experiment workflow wiring. The Production workflow's signing-cache restore step still needs to be checked in the run logs/step result before asserting the APK will update the installed app.
