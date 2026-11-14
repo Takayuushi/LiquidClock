@@ -1067,8 +1067,23 @@ class LiquidWallpaperRenderer(
                 mix(1.0, 0.72, horizontalShoulder);
             colour += environmentReflectionChroma *
                 glassBevelSpecular * 0.42 * (1.0 - solidMode);
-            colour += float3(0.80, 0.91, 1.0) *
-                glassBevelSpecular * 0.12 * (1.0 - solidMode);
+            // Keep the narrow bevel reflection, but let its soft highlight
+            // follow the reflected environment instead of adding a fixed
+            // pale-blue veil over the transmitted face. Per-channel headroom
+            // protects the underlying colour while retaining a glass edge.
+            float3 glassBevelReflectionColour = mix(
+                float3(0.80, 0.91, 1.0),
+                chromaticEnvironmentReflection,
+                0.72
+            );
+            float3 glassBevelReflectionHeadroom =
+                max(float3(1.0) - colour, float3(0.0)) * 0.70;
+            float3 glassBevelReflectionContribution = min(
+                glassBevelReflectionColour *
+                    glassBevelSpecular * 0.12 * (1.0 - solidMode),
+                glassBevelReflectionHeadroom
+            );
+            colour += glassBevelReflectionContribution;
 
             // Ambient glass scatter keeps digits legible over pure-black
             // wallpaper regions without laying a gray veil over bright images.
