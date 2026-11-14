@@ -1503,3 +1503,16 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Do not promote automatically. User evaluation determines whether the normal-driven reflection model is retained or revised.
 
 
+
+
+
+## Build #107 candidate — Digit Lab empty startup field (14 Nov 2026)
+- Isolated branch: `feature/digit-lab-empty-start-107`, created from successful Build #106 branch `feature/normal-driven-reflections-106`.
+- Digit Lab change only: `digit-lab/app/src/main/java/com/example/ios27clock/DigitLabActivity.kt`.
+- Removed the automatic `0123456789` sample by making `DEFAULT_SAMPLE` an empty string and no longer calling `setText(DEFAULT_SAMPLE)` on the EditText during panel construction. The input now opens blank and shows its existing hint (`00:00 or 0123456789`).
+- The sample clock text source also starts empty, so the preview does not render the ten-digit test string on launch. User-entered digits/times continue to update through the existing TextWatcher and validation path.
+- No changes to renderer, geometry, Liquid Glass shader, Frosted Glass, saved material/font preferences, or production wallpaper code.
+- This is a usability-only change requested by the user because the prefilled string required repeated Backspace deletion every launch.
+- Awaiting CI build and on-device confirmation that Digit Lab starts with an empty field and accepts typed values normally.
+
+
