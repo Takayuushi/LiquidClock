@@ -952,3 +952,12 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 ### Required wording for future handovers
 - Say **“official Apple SF Pro variable font and Display faces, extracted from Apple's SF-Pro.dmg”**.
 - Never say or imply “GitHub font” when referring to the current production or Digit Lab font.
+
+
+## Separate Build #56 exploration branch (15 Nov 2026)
+- User explicitly approved returning to the Build #56 renderer as a separate experimental line because the assistant should not continue making changes on the #96/#121 line if it is not confident in that direction.
+- Created branch `experiment/soft-transmission-from-build-56` directly from exact Build #56 renderer commit `62b26ddcdecb9c03f317fe698f4d50a39ea6d845` (“Unify Liquid Glass volume scattering and soften reflections”).
+- This branch is an isolated exploration branch only. It does not replace, overwrite, or alter Build #96, #121, or their branches. Preserve the #96 lineage intact as the user's most perfected visual checkpoint.
+- Important known issue in #56: its 62% shared atmospheric blend targets a source with 82% isotropic blurred wallpaper, suppressing local chromatic energy; the 22–30% blurred Fresnel reflection further washes out orange/blue cues. User previously reported loss of orange scattering in 0, blue hue in 4, and natural haze in 1/7. This is known history, not a reason to avoid using #56 as an experimental foundation; it is precisely the behaviour the new branch can investigate and improve.
+- Do not simply repeat the #56 implementation unchanged or call it visually better. First inspect the #56 renderer and identify how to preserve its broad internal softness while restoring colour-bearing transmission and natural reflection. Keep changes isolated to Liquid Glass; Solid/Frosted remains protected. No digit-specific rules.
+- No renderer modifications or builds have been made on this new branch yet. Next step is source inspection and a controlled experiment proposal; do not alter the #96/#121 branches.
