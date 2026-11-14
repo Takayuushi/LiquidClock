@@ -1680,3 +1680,10 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Production Android 17 APK Build #400, run `43625851661`: conclusion `success`; artifact `iOS27-LiquidClock-Android17-debug`, artifact ID `14125204484`, not expired.
 - Liquid Clock Digit Lab APK #120, run `43625851652`: conclusion `success`; artifact `liquid-clock-digit-lab-debug`, artifact ID `14125614635`, not expired.
 - These are build/packaging results only. They do not establish that the second-order Jacobian improves the on-device optical result. Await user screenshots of #120 before selecting another shader experiment.
+
+
+## Reference-wallpaper calibration protocol clarification (14 Nov 2026)
+- User clarified that the black/blue/orange diagonal wallpaper is the primary lighting/material calibration wallpaper because the project has an actual iOS 27 reference image for that wallpaper. Use it as the primary target for matching reflection direction, highlight shape/intensity, internal volume, refraction, colour transmission and overall optical appearance.
+- The pink beach wallpaper is a secondary robustness/colour-transmission test only. There is no corresponding iOS 27 reference image for it, so do not use it to judge whether the renderer matches Apple's lighting or to make target-directed lighting adjustments. It can still reveal washout, clipping, hue loss or unstable behaviour under a different palette.
+- For Build #120 and subsequent optical experiments, first compare the black/blue/orange reference wallpaper against the actual iOS 27 screenshot. Use pink beach only as a secondary sanity check after the primary reference comparison.
+- Do not ask for both wallpapers as equally weighted visual targets. The reference-backed black/blue/orange image is the calibration anchor.
