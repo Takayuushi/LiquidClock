@@ -1038,7 +1038,17 @@ class LiquidWallpaperRenderer(
                 glassAreaReflectionHeadroom * 0.90
             );
             colour += glassAreaReflectionContribution;
-            colour += float3(0.98, 0.99, 1.0) *
+            // Keep the narrow key glint crisp, but let its white core inherit
+            // a restrained amount of the reflected environment's chroma.
+            // This makes the highlight read as a reflection on coloured glass
+            // instead of a fixed white streak laid over the transmitted face.
+            float3 glassKeyGlintColour = clamp(
+                float3(0.98, 0.99, 1.0) +
+                    environmentReflectionChroma * 0.55,
+                0.0,
+                1.0
+            );
+            colour += glassKeyGlintColour *
                 glassKeyGlint * (1.0 - solidMode) * 1.28;
             colour += float3(0.68, 0.82, 1.0) *
                 glassFillGlint * (1.0 - solidMode) * 0.88;
