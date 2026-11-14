@@ -747,7 +747,7 @@ class LiquidWallpaperRenderer(
             float glassDarkness = 1.0 - smoothstep(0.08, 0.24, refractedLuma);
             float glassNearbyLight = smoothstep(0.10, 0.32, blurredWallpaperLuma);
             float glassBounceStrength =
-                0.26 * glassDarkness * glassNearbyLight;
+                0.24 * glassDarkness * glassNearbyLight;
             float3 brightGlassBounce = clamp(
                 frostedWallpaper * 1.44 + float3(0.012, 0.014, 0.022),
                 0.0,
@@ -781,14 +781,17 @@ class LiquidWallpaperRenderer(
                 0.60,
                 glassVolumeRegion
             );
-            // A slightly longer optical path through the glyph's interior
-            // increases scattering smoothly toward the centre of every stroke.
-            // The same distance field and response are used for all numerals.
-            float glassOpticalPath = mix(
-                0.90,
-                1.0,
-                smoothstep(1.0, 22.0, insideDistance)
-            );
+            // The curved shoulder has a longer internal optical path than
+            // the flatter centre. Let the existing convex profile's slope and
+            // coverage increase in-scattering through that shoulder, then fade
+            // continuously toward the centre of every stroke.
+            // This is the same geometry-derived path response for all glyphs.
+            float glassCurvedPathWeight =
+                smoothstep(0.08, 0.48, glassProfileSlope) *
+                glassProfileCoverage;
+            float glassOpticalPath =
+                mix(0.90, 1.0, smoothstep(1.0, 22.0, insideDistance)) +
+                0.18 * glassCurvedPathWeight;
             float glassAtmosphericScatter =
                 0.62 * glassAtmosphericCoverage * glassOpticalPath;
             // Keep a restrained directional component inside the otherwise
