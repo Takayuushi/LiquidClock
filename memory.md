@@ -1476,3 +1476,15 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Both #104 GitHub Actions workflows completed successfully: Android run `43600605309` (artifact `iOS27-LiquidClock-Android17-debug`) and Digit Lab run `43600605360` (artifact `liquid-clock-digit-lab-debug`).
 
 
+
+
+
+## Build #105 visual review — user screenshots (14 Nov 2026)
+- User supplied three Build #105 Digit Lab screenshots on the same blue/yellow diagonal, pink beach and red-nebula wallpapers used for the Build #104 review. Settings remain `10:47`, compressed width, weight 539.
+- Direct side-by-side screenshot review against the earlier #104 images shows the overall material appearance remains very close. The curved interior ray path does not produce obvious colour smearing or broad blur in these three samples.
+- The blue/yellow sample retains distinct bands and the lower-`0` bend. The pink beach sample keeps the pink foliage/sky and turquoise water legible through the digits. The red nebula retains dark transparency and red environmental colour.
+- The change is subtle at screenshot scale; the current images do not establish a dramatic increase in visible refraction. Any apparent small differences should be treated cautiously because screenshot capture, UI placement and display scaling can affect pixel comparisons.
+- The #105 candidate is promising as a restrained experiment, but not yet promoted. For a stronger evaluation, compare the same wallpaper and settings side-by-side and, if possible, test additional glyphs/times with strong high-frequency background patterns.
+- Both #105 GitHub Actions workflows completed successfully: Android run `43603296210` (artifact `iOS27-LiquidClock-Android17-debug`) and Digit Lab run `43603296206` (artifact `liquid-clock-digit-lab-debug`).
+
+
