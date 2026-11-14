@@ -1046,7 +1046,21 @@ class LiquidWallpaperRenderer(
             float scatterInLitGlass = smoothstep(0.10, 0.34, microfacetEnergy);
             float scatterWhiteProtection = 1.0 -
                 0.42 * smoothstep(0.72, 0.94, microfacetLuma);
-            float glassVolumeScatter = 0.28 *
+            // Build #107: derive in-volume scattering from the actual optical
+            // path through the convex body. The existing thickness follows
+            // the height field, while the refracted ray's z component accounts
+            // for its travel angle inside the material. Beer-Lambert
+            // accumulation keeps the same mean scatter near the centreline,
+            // but lets thicker/oblique paths accumulate proportionally more.
+            // This is one shared material response: no glyph or region tuning.
+            float glassPathCosine = max(abs(refractedRay.z), 0.55);
+            float glassInteriorPathLength =
+                glassOpticalThickness / glassPathCosine;
+            const float GLASS_SCATTERING_COEFFICIENT = 0.0078;
+            float glassPathScatter = 1.0 - exp(
+                -GLASS_SCATTERING_COEFFICIENT * glassInteriorPathLength
+            );
+            float glassVolumeScatter = glassPathScatter *
                 scatterInLitGlass *
                 scatterWhiteProtection *
                 smoothstep(0.12, 0.60, glassVolumeRegion);
