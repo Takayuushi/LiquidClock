@@ -254,7 +254,7 @@ class LiquidWallpaperRenderer(
             float glassAreaReflection = pow(
                 max(dot(glassSurfaceNormal, keyHalfVector), 0.0),
                 5.5
-            ) * 0.52 * smoothstep(0.08, 0.48, glassProfileSlope) * glassHorizontalHighlight;
+            ) * 0.46 * smoothstep(0.08, 0.48, glassProfileSlope) * glassHorizontalHighlight;
             float glassKeyGlint = pow(
                 max(dot(glassSurfaceNormal, keyHalfVector), 0.0),
                 42.0
