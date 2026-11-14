@@ -1519,3 +1519,19 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - The Digit Lab empty-start usability fix remains isolated on `feature/digit-lab-empty-start-107`; it is not included in this renderer branch.
 
 
+
+
+
+## Build #108 candidate — chromatic-energy preservation in volumetric scattering (14 Nov 2026)
+- Isolated branch: `feature/chromatic-volume-preservation-108`, created from the successful Build #107 renderer candidate `feature/volumetric-light-transport-107`. #107 remains unchanged.
+- Renderer commit: `e47886847660b082b2dc1d9eb65b43dae8bd7de6`.
+- User's Build #107 screenshots show the orange light inside the `0` looking less saturated/washed out on the blue/yellow diagonal wallpaper, while the pink beach and overall blue/white material response remain acceptable.
+- Adds a colour-agnostic chroma-retention calculation for the existing linear-light microfacet transmission: preserve its linear luminance baseline and multiply the chromatic residual by 1.10. This is not an orange-specific tint or a digit/region rule; every hue uses the same calculation.
+- Uses the resulting chromatic transmission as the source for both the volume-scattering target and diffuse transport target. The diffuse source blend moves from 0.18 to 0.26 so the broad in-scattering layer retains more of the sampled wallpaper colour.
+- Existing warm environmental transport remains as before; it is not newly boosted or given special screen-space treatment.
+- No changes to path-length Beer-Lambert coefficient, glass thickness, curved ray integration, normal-driven reflections, atmospheric coverage/scatter/bloom strengths, geometry, extra texture reads, uniforms, or render passes.
+- No per-digit, per-clock-time, per-region, or wallpaper-specific handling. Frosted/Solid path remains outside this Liquid Glass chromatic transport adjustment.
+- Experimental and awaiting CI/on-device validation. Compare #108 against #107 using identical settings on blue/yellow diagonal, pink beach and red-nebula wallpapers. Main question: does the orange light inside `0` retain stronger colour identity without making blue/yellow too saturated, turning whites coloured, or reducing the glass's soft volume?
+- #107 Android and Digit Lab workflows both completed successfully: runs `43614101113` and `43614101099`.
+
+
