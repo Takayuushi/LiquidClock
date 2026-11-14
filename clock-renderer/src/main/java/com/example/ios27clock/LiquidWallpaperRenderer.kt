@@ -305,8 +305,47 @@ class LiquidWallpaperRenderer(
                 1.34,
                 smoothstep(0.10, 0.55, glassProfileSlope)
             );
+            // Estimate the local curvature of the convex height profile
+            // from the same four SDF-derived height samples used for its normal.
+            // The refracted-ray map is p + thickness * ray(p); its local
+            // Jacobian therefore responds to the height Hessian. Keep this
+            // magnification bounded and fade it out across the flat face/rim.
+            const float GLASS_HEIGHT_SAMPLE_STEP = 4.25;
+            float heightCurvatureX =
+                (heightRight - 2.0 * glassHeight + heightLeft) /
+                (GLASS_HEIGHT_SAMPLE_STEP * GLASS_HEIGHT_SAMPLE_STEP);
+            float heightCurvatureY =
+                (heightBottom - 2.0 * glassHeight + heightTop) /
+                (GLASS_HEIGHT_SAMPLE_STEP * GLASS_HEIGHT_SAMPLE_STEP);
+            float refractiveCurvatureScale =
+                GLASS_THICKNESS_PX * 0.342;
+            float rayMapJacobianX = 1.0 +
+                refractiveCurvatureScale * heightCurvatureX;
+            float rayMapJacobianY = 1.0 +
+                refractiveCurvatureScale * heightCurvatureY;
+            float rayMapDeterminant = clamp(
+                rayMapJacobianX * rayMapJacobianY,
+                0.88,
+                1.12
+            );
+            float lensMagnification = clamp(
+                inversesqrt(rayMapDeterminant * rayMapDeterminant),
+                0.94,
+                1.06
+            );
+            float lensRegion = smoothstep(
+                0.025,
+                0.16,
+                glassProfileSlope
+            ) * glassProfileCoverage;
+            lensMagnification = mix(
+                1.0,
+                lensMagnification,
+                lensRegion
+            );
             float2 glassRefractionOffset =
-                refractedRay.xy * GLASS_THICKNESS_PX * glassEdgePull;
+                refractedRay.xy * GLASS_THICKNESS_PX *
+                glassEdgePull * lensMagnification;
             float2 solidWarp =
                 refractionNormal *
                     (1.5 + solidEdge * 6.0 + solidBevel * 1.1) +
