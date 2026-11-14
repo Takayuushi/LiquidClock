@@ -927,6 +927,8 @@ class LiquidWallpaperRenderer(
 
             // Build #109: derive chromatic energy from the FINAL coherence-
             // stabilised transmission, not the raw directional bundle above.
+            // Keep this ordering invariant: downstream volume and diffuse
+            // transport must never bypass the paired-band coherence blend.
             // This keeps paired-band softening and the isotropic fallback in
             // the same colour source used by volume and diffuse scattering.
             // The modest residual lift preserves sampled wallpaper colour in
