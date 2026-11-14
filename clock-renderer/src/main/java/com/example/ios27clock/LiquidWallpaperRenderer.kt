@@ -647,10 +647,15 @@ class LiquidWallpaperRenderer(
             // Keep a restrained directional component inside the otherwise
             // broad volume scatter so the face stays liquid and image-aware,
             // rather than becoming a flat frosted overlay.
+            // Keep the broad #56 atmospheric body, but restore more of
+            // the directional, colour-bearing microfacet transmission.
+            // #56's 82% isotropic target over-averaged saturated orange/blue
+            // energy; 62% keeps the soft environment dominant while allowing
+            // the refracted wallpaper structure to remain chromatically legible.
             float3 glassVolumeInScatter = mix(
                 volumeScatteredTransmission,
                 frostedWallpaper,
-                0.82
+                0.62
             );
             glassTransmitted = mix(
                 glassTransmitted,
