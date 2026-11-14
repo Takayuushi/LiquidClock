@@ -650,6 +650,52 @@ class LiquidWallpaperRenderer(
                 stableDirectionWeight
             );
 
+            // Preserve warm wallpaper energy only when the final, coherence-
+            // stabilised transmission genuinely contains red/amber chroma.
+            // Work in linear light so the correction follows optical energy,
+            // not display-encoded channel values. Neutral white is rejected
+            // by requiring red to exceed both green and blue.
+            float3 microfacetTransmissionLinear = mix(
+                microfacetTransmission / 12.92,
+                pow(
+                    (microfacetTransmission + 0.055) / 1.055,
+                    2.4
+                ),
+                step(float3(0.04045), microfacetTransmission)
+            );
+            float warmLightSignal = max(
+                microfacetTransmissionLinear.r -
+                    max(
+                        microfacetTransmissionLinear.g * 0.98,
+                        microfacetTransmissionLinear.b * 1.04
+                    ),
+                0.0
+            );
+            float warmLightPresence = smoothstep(
+                0.025,
+                0.12,
+                warmLightSignal
+            ) * smoothstep(
+                0.045,
+                0.22,
+                microfacetTransmissionLinear.r
+            );
+            float3 warmLightTransportLinear =
+                microfacetTransmissionLinear *
+                    (1.0 + warmLightPresence * 0.16) +
+                float3(0.010, 0.004, 0.0) * warmLightPresence;
+            float3 warmLightTransport = mix(
+                warmLightTransportLinear * 12.92,
+                1.055 * pow(
+                    max(warmLightTransportLinear, float3(0.0)),
+                    0.4166667
+                ) - 0.055,
+                step(
+                    float3(0.0031308),
+                    warmLightTransportLinear
+                )
+            );
+
             float microfacetDiffusion = mix(
                 0.42,
                 0.96,
@@ -715,8 +761,13 @@ class LiquidWallpaperRenderer(
             // microfacet component preserves optical refraction, while the
             // isotropic wallpaper environment supplies the broad atmospheric
             // in-scattering seen through hazy illuminated glass.
+            float3 warmRetainedTransmission = mix(
+                microfacetTransmission,
+                warmLightTransport,
+                warmLightPresence * 0.42
+            );
             float3 volumeScatteredTransmission = clamp(
-                microfacetTransmission * 1.10 +
+                warmRetainedTransmission * 1.10 +
                     float3(0.016, 0.020, 0.028),
                 0.0,
                 1.0
