@@ -1021,3 +1021,11 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - Source commit: `03ba23ec26d040715f88146b4cd9ec3008ad8103` — “Extend cross-band blending to moderate wallpaper streaks”.
 - Production #404 run `43633337462` and Digit Lab #124 run `43633337343` automatically triggered from the same exact source SHA; both queued at last check. [Production #404](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43633337462) · [Digit Lab #124](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43633337343)
 - Status: experimental, not visually validated. Compare #124 directly with #123 on the black/blue/orange diagonal wallpaper at 10:47, Compressed width, weight 539. Confirm the left arm of `0` retains its multicolour blend, and check whether the `1` and `7` dark parallel lines merge more naturally without washing out the 4/7 blue or flattening the glass face.
+
+
+## Build #124 visual review — small positive improvement (15 Nov 2026)
+- User tested Digit Lab #124 with primary black/blue/orange diagonal wallpaper, sample `10:47`, Compressed width, weight 539, Liquid Glass.
+- User assessment: “I think this is also an improvement although small but noticeable.”
+- Treat #124 as a positive incremental result over #123, not a dramatic breakthrough. Preserve the threshold adjustment `smoothstep(0.06, 0.45, wallpaperContrast)` and prior #123 radius (24–40px), #122 62/38 atmospheric source mix.
+- Both Production #404 (run `43633337462`) and Digit Lab #124 (run `43633337343`) completed successfully from identical source SHA `03ba23ec26d040715f88146b4cd9ec3008ad8103`. [Production #404](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43633337462) · [Digit Lab #124](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43633337343)
+- Do not overstate the visual result or immediately stack a large blur increase. The next refinement should be a small, controlled step informed by the #124 screenshot, preserving the improved multicolour blend in the left arm of `0` while gradually improving the `1` and `7`.
