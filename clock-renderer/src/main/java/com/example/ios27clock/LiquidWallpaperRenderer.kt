@@ -527,7 +527,11 @@ class LiquidWallpaperRenderer(
             float2 diffusionAxis = diffusionDirection /
                 max(diffusionGradientLength, 0.0001);
             float wallpaperContrast = sqrt(max(tensorLambda, 0.0));
-            float bandContrast = smoothstep(0.08, 0.55, wallpaperContrast);
+            // Let moderate-contrast streaks enter the same cross-band blending
+            // response a little earlier. Keep the maximum diffusion footprint
+            // fixed so already-strongly-blended regions (such as the orange/
+            // white transition in the zero) are not pushed into extra haze.
+            float bandContrast = smoothstep(0.06, 0.45, wallpaperContrast);
             // Diffuse across (not along) high-contrast wallpaper bands.
             // The larger footprint merges paired streaks into a continuous
             // glass volume, while low-contrast areas retain sharper detail.
