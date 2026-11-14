@@ -1537,3 +1537,16 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - GitHub source commit was made with `[skip ci]`; no Android or Digit Lab build was triggered. There are no #109 APKs or CI results to report yet.
 - On-device test, once explicitly requested/built: compare #109 directly with #108 using identical `10:47`, compressed width, weight 539, placement and scale. Reuse the blue/yellow diagonal and pink beach wallpapers; also check the red-nebula reference if available. Inspect whether the orange/warm colour in `0` is retained more convincingly after the coherence blend, while blue-white reflections, wallpaper detail and the pink/turquoise beach response remain natural. Confirm Frosted Glass is unchanged.
 - #109 is experimental and not promoted. Keep #108 as its direct rollback checkpoint; Build #93 remains the accepted project-wide visual baseline unless the user explicitly changes that decision.
+
+
+## Build #109 device screenshots and CI validation (14 Nov 2026)
+- User supplied screenshots showing both GitHub Actions workflows succeeded for commit `ecec193` on `feature/post-coherence-chroma-109`.
+- Production workflow: **Android 17 APK Build #396**, green success, duration shown as 1m 39s.
+- Digit Lab workflow: **Liquid Clock Digit Lab APK #116**, green success, duration shown as 1m 42s.
+- User also supplied the resulting Digit Lab screenshots using sample `10:47`, Liquid Glass, Compressed font width, weight `539`, with the same two wallpapers used for the #108 visual check.
+- Pink beach result: warm pink/red environmental colour remains visibly transmitted through the left-side `1` and the `0`; turquoise water remains visible through the lower digits. No obvious milky/frosted washout is introduced.
+- Blue/yellow diagonal result: the lower interior of `0` shows a distinct warm orange/red transmitted region while the blue/white diagonal reflections remain strong and the wallpaper structure remains legible. Warm colour is still not dominant, but the sample does not look neutralised to grey.
+- Overall #109 assessment: the post-coherence chroma transport change appears safe on both contrasting wallpapers and gives a modest improvement in colour-bearing internal transmission, particularly the warm lower region of `0`. The change is subtle rather than a dramatic material transformation.
+- Important remaining visual gap: the digits still read strongly as outlined/bevelled glass in some regions. The next major effort should target convincing convex front-volume thickness and broad, continuous surface reflections/highlights—not simply more chroma, glow or edge brightness. Preserve the legible wallpaper transmission and avoid turning the face milky.
+- CI success confirms both APK workflows completed; it does not by itself prove runtime correctness. The supplied Digit Lab screenshots provide the device-level visual check. Production APK installation/runtime has not separately been demonstrated by these screenshots.
+- Build #109 remains experimental; do not promote it to the accepted #93 baseline until the user approves. Keep #108 as the immediate rollback checkpoint.
