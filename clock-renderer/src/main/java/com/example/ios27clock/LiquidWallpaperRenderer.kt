@@ -855,6 +855,51 @@ class LiquidWallpaperRenderer(
                 warmLightTransport,
                 warmLightPresence * 0.42
             );
+            // First-order internal return from a locally parallel rear glass
+            // interface. The front interface has already refracted the ray;
+            // at the back interface, Fresnel reflects a small portion while
+            // the rest exits. The reflected portion keeps its screen-space
+            // direction, travels back through the slab, and reaches the front
+            // at a second, displaced wallpaper coordinate.
+            //
+            // This is a bounded slab approximation, not a full curved rear
+            // surface solve. Its colour comes only from the sampled wallpaper,
+            // so amber/blue/black echoes arise naturally from the environment.
+            float glassRearInterfaceF0 = pow(
+                (GLASS_IOR - 1.0) / (GLASS_IOR + 1.0),
+                2.0
+            );
+            float glassRearIncidenceCosine = clamp(
+                abs(refractedRay.z),
+                0.0,
+                1.0
+            );
+            float glassRearInterfaceFresnel =
+                glassRearInterfaceF0 +
+                (1.0 - glassRearInterfaceF0) *
+                    pow(1.0 - glassRearIncidenceCosine, 5.0);
+            float2 glassInternalReturnPoint = clamp(
+                samplePoint + glassRefractionOffset,
+                float2(0.0),
+                uResolution
+            );
+            float3 glassInternalReturnSample = warmRetainedTransmission;
+            float glassInternalReturnWeight = min(
+                glassRearInterfaceFresnel *
+                    (1.0 - glassVolumeFresnel) *
+                    (1.0 - glassVolumeFresnel) *
+                    glassVolumeRegion * 1.5,
+                0.075
+            ) * (1.0 - solidMode);
+            if (glassInternalReturnWeight > 0.001) {
+                glassInternalReturnSample =
+                    uWallpaper.eval(glassInternalReturnPoint).rgb;
+            }
+            warmRetainedTransmission = mix(
+                warmRetainedTransmission,
+                glassInternalReturnSample,
+                glassInternalReturnWeight
+            );
             float3 volumeScatteredTransmission = clamp(
                 warmRetainedTransmission * 1.10 +
                     float3(0.016, 0.020, 0.028),
