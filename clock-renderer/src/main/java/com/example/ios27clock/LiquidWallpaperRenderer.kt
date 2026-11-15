@@ -828,7 +828,11 @@ class LiquidWallpaperRenderer(
                 float curvedShoulderCoverage =
                     smoothstep(0.025, 0.16, glassProfileSlope) *
                     glassProfileCoverage;
-                glassBackInterfaceBlend = 0.72 *
+                // Give the valid curved two-interface ray a stronger say in
+                // the shared transmitted sample. Keep all rear-coverage,
+                // curvature, Snell and Fresnel gates unchanged so invalid or
+                // near-flat regions continue using the established front path.
+                glassBackInterfaceBlend = 0.90 *
                     rearSurfaceCoverage *
                     curvedShoulderCoverage *
                     rearSnellGate *
