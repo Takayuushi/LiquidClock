@@ -1493,11 +1493,79 @@ class LiquidWallpaperRenderer(
                 1.0,
                 smoothstep(0.04, 0.32, glassProfileSlope)
             );
-            refractedGlass = mix(
+            // Preserve the established cross-band luminance diffusion,
+            // but do not force the same amount of chroma averaging onto the
+            // direct refracted/dispersion source. This keeps environmental
+            // colour carried by the actual refracted ray while the broad
+            // microfacet source still controls the soft internal luminance.
+            float preScatterRefractedLuma = dot(
                 refractedGlass,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float preScatterMicrofacetLuma = dot(
                 microfacetTransmission,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float3 preScatterRefractedChroma =
+                refractedGlass - float3(preScatterRefractedLuma);
+            float3 preScatterMicrofacetChroma =
+                microfacetTransmission - float3(preScatterMicrofacetLuma);
+            float preScatterChromaSeparation = length(
+                preScatterRefractedChroma -
+                    preScatterMicrofacetChroma
+            );
+            float preScatterChromaRetention = smoothstep(
+                0.025,
+                0.16,
+                preScatterChromaSeparation
+            );
+            float preScatterLuma = mix(
+                preScatterRefractedLuma,
+                preScatterMicrofacetLuma,
                 microfacetDiffusion
             );
+            // Retain up to six additional percentage points of the original
+            // refracted-source chroma where the two existing sources differ.
+            // This applies equally to all hues and glyphs; no warm/blue/cyan
+            // detector or fixed tint is introduced.
+            float preScatterChromaDiffusion = clamp(
+                microfacetDiffusion -
+                    0.06 * preScatterChromaRetention,
+                0.0,
+                1.0
+            );
+            float3 preScatterChroma = mix(
+                preScatterRefractedChroma,
+                preScatterMicrofacetChroma,
+                preScatterChromaDiffusion
+            );
+            // Keep the reconstructed RGB in gamut without changing its
+            // luminance: scale chroma uniformly only when required by a
+            // channel boundary.
+            float3 positiveChroma = max(preScatterChroma, float3(0.0));
+            float3 negativeChroma = max(-preScatterChroma, float3(0.0));
+            float3 positiveChromaCapacity =
+                (1.0 - preScatterLuma) /
+                max(positiveChroma, float3(0.0001));
+            float3 negativeChromaCapacity =
+                preScatterLuma /
+                max(negativeChroma, float3(0.0001));
+            float preScatterGamutScale = clamp(
+                min(
+                    min(
+                        min(positiveChromaCapacity.x, positiveChromaCapacity.y),
+                        positiveChromaCapacity.z
+                    ),
+                    min(
+                        min(negativeChromaCapacity.x, negativeChromaCapacity.y),
+                        negativeChromaCapacity.z
+                    )
+                ),
+                0.0,
+                1.0
+            );
+            refractedGlass = float3(preScatterLuma) +
+                preScatterChroma * preScatterGamutScale;
 
             float refractedLuma = dot(
                 refractedGlass,
