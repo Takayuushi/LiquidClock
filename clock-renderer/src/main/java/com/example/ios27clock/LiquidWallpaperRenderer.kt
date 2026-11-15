@@ -1473,8 +1473,8 @@ class LiquidWallpaperRenderer(
             );
             float3 warmLightTransportLinear =
                 microfacetTransmissionLinear *
-                    (1.0 + warmLightPresence * 0.16) +
-                float3(0.010, 0.004, 0.0) * warmLightPresence;
+                    (1.0 + warmLightPresence * 0.28) +
+                float3(0.020, 0.008, 0.0) * warmLightPresence;
             float3 warmLightTransportSrgbHigh = float3(
                 1.055 * pow(max(warmLightTransportLinear.r, 0.0), 0.4166667) - 0.055,
                 1.055 * pow(max(warmLightTransportLinear.g, 0.0), 0.4166667) - 0.055,
@@ -1632,14 +1632,14 @@ class LiquidWallpaperRenderer(
             // they boosted local colour without placing a physically correct
             // opposite-side image and were mostly erased by broad scattering.
             float3 volumeScatteredTransmission = clamp(
-                warmRetainedTransmission * 1.10 +
-                    float3(0.016, 0.020, 0.028),
+                warmRetainedTransmission * 1.15 +
+                    float3(0.025, 0.030, 0.035),
                 0.0,
                 1.0
             );
             float glassAtmosphericCoverage = smoothstep(
-                0.10,
-                0.60,
+                0.05,
+                0.50,
                 glassVolumeRegion
             );
             // The convex profile and traced rear interface define a shared
@@ -1693,11 +1693,11 @@ class LiquidWallpaperRenderer(
             // image by mixing nearby radiance through the same glass volume,
             // without a screen-space blur or a colour-specific correction.
             float glassVolumeIsotropicWeight = clamp(
-                mix(0.70, 0.76, bandContrast) -
+                mix(0.62, 0.70, bandContrast) -
                     0.04 * chromaticRetention -
                     glassCurvatureDirectionalRetention,
-                0.62,
-                0.76
+                0.55,
+                0.70
             );
             // Keep the established broad luminance diffusion exactly as-is,
             // but let more directional environmental chroma survive when the
@@ -1764,7 +1764,7 @@ class LiquidWallpaperRenderer(
             // illuminated regions spread softly without turning the complete
             // face into a white or gray frosted layer.
             float glassAtmosphericBloom =
-                0.30 * glassAtmosphericCoverage;
+                0.45 * glassAtmosphericCoverage;
             glassTransmitted = 1.0 -
                 (1.0 - glassTransmitted) *
                 (1.0 - glassBrightBloom * glassAtmosphericBloom);
