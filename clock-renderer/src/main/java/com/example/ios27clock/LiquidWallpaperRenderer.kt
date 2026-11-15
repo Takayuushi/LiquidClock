@@ -163,6 +163,15 @@ class LiquidWallpaperRenderer(
                 3.2,
                 colonFlag * (1.0 - solidMode)
             );
+            // Keep the original tight 20px edge cap, then add a shallow,
+            // low-frequency crown that continues across the otherwise-flat
+            // stroke face. The same distance-derived crown shapes the normal,
+            // refraction and reflections for every glyph. Solid/Frosted is
+            // explicitly excluded from this added Liquid Glass surface depth.
+            const float GLASS_BODY_CROWN_HEIGHT = 5.0;
+            const float GLASS_BODY_CROWN_RADIUS = 52.0;
+            float glassBodyCrownStrength =
+                GLASS_BODY_CROWN_HEIGHT * (1.0 - solidMode);
             float profileDistance = clamp(
                 insideDistance,
                 0.0,
@@ -172,7 +181,8 @@ class LiquidWallpaperRenderer(
                 2.0 * glassProfileRadius * profileDistance -
                     profileDistance * profileDistance,
                 0.0
-            ));
+            )) + glassBodyCrownStrength *
+                smoothstep(0.0, GLASS_BODY_CROWN_RADIUS, insideDistance);
 
             float distanceLeft = max(
                 (sdfLeft - 0.5) * 2.0 * uSdfRange,
@@ -198,22 +208,26 @@ class LiquidWallpaperRenderer(
                 2.0 * glassProfileRadius * heightLeftDistance -
                     heightLeftDistance * heightLeftDistance,
                 0.0
-            ));
+            )) + glassBodyCrownStrength *
+                smoothstep(0.0, GLASS_BODY_CROWN_RADIUS, distanceLeft);
             float heightRight = sqrt(max(
                 2.0 * glassProfileRadius * heightRightDistance -
                     heightRightDistance * heightRightDistance,
                 0.0
-            ));
+            )) + glassBodyCrownStrength *
+                smoothstep(0.0, GLASS_BODY_CROWN_RADIUS, distanceRight);
             float heightTop = sqrt(max(
                 2.0 * glassProfileRadius * heightTopDistance -
                     heightTopDistance * heightTopDistance,
                 0.0
-            ));
+            )) + glassBodyCrownStrength *
+                smoothstep(0.0, GLASS_BODY_CROWN_RADIUS, distanceTop);
             float heightBottom = sqrt(max(
                 2.0 * glassProfileRadius * heightBottomDistance -
                     heightBottomDistance * heightBottomDistance,
                 0.0
-            ));
+            )) + glassBodyCrownStrength *
+                smoothstep(0.0, GLASS_BODY_CROWN_RADIUS, distanceBottom);
             float heightGradientX = (heightRight - heightLeft) / 8.5;
             float heightGradientY = (heightBottom - heightTop) / 8.5;
             float glassProfileSlope = length(
@@ -339,46 +353,78 @@ class LiquidWallpaperRenderer(
                 float sdfBottomRight = uGlyphSdf.eval(
                     sdfPoint + sampleStep
                 ).a;
-                float heightTopLeftDistance = clamp(
-                    max((sdfTopLeft - 0.5) * 2.0 * uSdfRange, 0.0),
-                    0.0,
+                float heightTopLeftInsideDistance = max(
+                    (sdfTopLeft - 0.5) * 2.0 * uSdfRange,
+                    0.0
+                );
+                float heightTopRightInsideDistance = max(
+                    (sdfTopRight - 0.5) * 2.0 * uSdfRange,
+                    0.0
+                );
+                float heightBottomLeftInsideDistance = max(
+                    (sdfBottomLeft - 0.5) * 2.0 * uSdfRange,
+                    0.0
+                );
+                float heightBottomRightInsideDistance = max(
+                    (sdfBottomRight - 0.5) * 2.0 * uSdfRange,
+                    0.0
+                );
+                float heightTopLeftDistance = min(
+                    heightTopLeftInsideDistance,
                     glassProfileRadius
                 );
-                float heightTopRightDistance = clamp(
-                    max((sdfTopRight - 0.5) * 2.0 * uSdfRange, 0.0),
-                    0.0,
+                float heightTopRightDistance = min(
+                    heightTopRightInsideDistance,
                     glassProfileRadius
                 );
-                float heightBottomLeftDistance = clamp(
-                    max((sdfBottomLeft - 0.5) * 2.0 * uSdfRange, 0.0),
-                    0.0,
+                float heightBottomLeftDistance = min(
+                    heightBottomLeftInsideDistance,
                     glassProfileRadius
                 );
-                float heightBottomRightDistance = clamp(
-                    max((sdfBottomRight - 0.5) * 2.0 * uSdfRange, 0.0),
-                    0.0,
+                float heightBottomRightDistance = min(
+                    heightBottomRightInsideDistance,
                     glassProfileRadius
                 );
                 float heightTopLeft = sqrt(max(
                     2.0 * glassProfileRadius * heightTopLeftDistance -
                         heightTopLeftDistance * heightTopLeftDistance,
                     0.0
-                ));
+                )) + glassBodyCrownStrength *
+                    smoothstep(
+                        0.0,
+                        GLASS_BODY_CROWN_RADIUS,
+                        heightTopLeftInsideDistance
+                    );
                 float heightTopRight = sqrt(max(
                     2.0 * glassProfileRadius * heightTopRightDistance -
                         heightTopRightDistance * heightTopRightDistance,
                     0.0
-                ));
+                )) + glassBodyCrownStrength *
+                    smoothstep(
+                        0.0,
+                        GLASS_BODY_CROWN_RADIUS,
+                        heightTopRightInsideDistance
+                    );
                 float heightBottomLeft = sqrt(max(
                     2.0 * glassProfileRadius * heightBottomLeftDistance -
                         heightBottomLeftDistance * heightBottomLeftDistance,
                     0.0
-                ));
+                )) + glassBodyCrownStrength *
+                    smoothstep(
+                        0.0,
+                        GLASS_BODY_CROWN_RADIUS,
+                        heightBottomLeftInsideDistance
+                    );
                 float heightBottomRight = sqrt(max(
                     2.0 * glassProfileRadius * heightBottomRightDistance -
                         heightBottomRightDistance * heightBottomRightDistance,
                     0.0
-                ));
+                )) + glassBodyCrownStrength *
+                    smoothstep(
+                        0.0,
+                        GLASS_BODY_CROWN_RADIUS,
+                        heightBottomRightInsideDistance
+                    );
                 heightCurvatureXY = (
                     heightBottomRight - heightBottomLeft -
                     heightTopRight + heightTopLeft
