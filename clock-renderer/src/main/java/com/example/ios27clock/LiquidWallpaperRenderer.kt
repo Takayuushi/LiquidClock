@@ -868,13 +868,24 @@ class LiquidWallpaperRenderer(
             float3 diagonalEnvironment = (
                 blurE + blurF + blurG + blurH
             ) * 0.25;
-            // Keep path integration restrained: it contributes 36% of the
-            // broad environment source, while the local exit-plane environment
-            // retains 64%. The direct refracted lobe remains untouched.
+            // Let Beer-Lambert optical depth determine how much of the
+            // broad environment comes from the actual curved internal path.
+            // Thin paths retain the established 36% quadrature share; thicker
+            // paths rise smoothly to 44%, reducing dependence on the nearby
+            // exit-plane proxy without increasing total energy or blur radius.
+            // The same path-response signal also controls broad reflection
+            // roughness later in the shared Liquid Glass composition.
+            // Reuse the Beer-Lambert path response computed for the
+            // internal environment quadrature above.
+            float glassPathIntegrationShare = mix(
+                0.36,
+                0.44,
+                glassPathScatterRoughness
+            );
             float3 pathAwareEnvironment = mix(
                 diagonalEnvironment,
                 pathIntegratedLight,
-                0.36
+                glassPathIntegrationShare
             );
             float3 legacyFrostedEnvironment = (
                 blurA + blurB + blurC + blurD +
