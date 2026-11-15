@@ -755,22 +755,38 @@ class LiquidWallpaperRenderer(
                 blurRadius * 0.7071
             );
             float3 blurA = uWallpaper.eval(clamp(
-                mix(p, glassInternalPathEnd, 0.125),
+                mix(
+                    mix(p, glassInternalPathEnd, 0.125),
+                    samplePoint + float2(blurRadius, 0.0),
+                    solidMode
+                ),
                 float2(0.0),
                 uResolution
             )).rgb;
             float3 blurB = uWallpaper.eval(clamp(
-                mix(p, glassInternalPathEnd, 0.375),
+                mix(
+                    mix(p, glassInternalPathEnd, 0.375),
+                    samplePoint - float2(blurRadius, 0.0),
+                    solidMode
+                ),
                 float2(0.0),
                 uResolution
             )).rgb;
             float3 blurC = uWallpaper.eval(clamp(
-                mix(p, glassInternalPathEnd, 0.625),
+                mix(
+                    mix(p, glassInternalPathEnd, 0.625),
+                    samplePoint + float2(0.0, blurRadius),
+                    solidMode
+                ),
                 float2(0.0),
                 uResolution
             )).rgb;
             float3 blurD = uWallpaper.eval(clamp(
-                mix(p, glassInternalPathEnd, 0.875),
+                mix(
+                    mix(p, glassInternalPathEnd, 0.875),
+                    samplePoint - float2(0.0, blurRadius),
+                    solidMode
+                ),
                 float2(0.0),
                 uResolution
             )).rgb;
@@ -805,10 +821,22 @@ class LiquidWallpaperRenderer(
             // Keep path integration restrained: it contributes 36% of the
             // broad environment source, while the local exit-plane environment
             // retains 64%. The direct refracted lobe remains untouched.
-            float3 frostedWallpaper = mix(
+            float3 pathAwareEnvironment = mix(
                 diagonalEnvironment,
                 pathIntegratedLight,
                 0.36
+            );
+            float3 legacyFrostedEnvironment = (
+                blurA + blurB + blurC + blurD +
+                blurE + blurF + blurG + blurH
+            ) * 0.125;
+            // Solid/Frosted keeps its exact original eight-direction sample
+            // positions and equal weights. Only Liquid Glass uses the path
+            // quadrature; no material outside Glass inherits this experiment.
+            float3 frostedWallpaper = mix(
+                legacyFrostedEnvironment,
+                pathAwareEnvironment,
+                1.0 - solidMode
             );
             // Extract bright energy before averaging so bright wallpaper bands
             // create a soft, low-frequency glow through the glass instead of
