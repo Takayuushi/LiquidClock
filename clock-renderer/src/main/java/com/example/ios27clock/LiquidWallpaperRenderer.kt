@@ -438,7 +438,190 @@ class LiquidWallpaperRenderer(
                 refractionNormal *
                     (1.5 + solidEdge * 6.0 + solidBevel * 1.1) +
                 tilt * 0.68;
-            float2 glassWarp = glassRefractionOffset + tilt * 1.8;
+            float2 glassWarp = glassRefractionOffset;
+
+            // Trace the refracted ray through the opposite curved side of the
+            // rounded glass rod. The rear surface is the mirrored SDF cap:
+            // zBack = -h(distance) - thickness. Two fixed-point updates locate
+            // the ray/surface intersection without a screen-space mirror guess.
+            // This is a two-interface curved-lens approximation, shared by
+            // every glyph; Solid/Frosted skips the entire extra geometry path.
+            float glassBackInterfaceBlend = 0.0;
+            if (solidMode < 0.5) {
+                float rearTravel = (
+                    GLASS_THICKNESS_PX + 2.0 * glassHeight
+                ) / max(-refractedRay.z, 0.15);
+                float2 rearPoint = clamp(
+                    p + refractedRay.xy * rearTravel,
+                    float2(0.0),
+                    uResolution
+                );
+                float sdfRearFirst = uGlyphSdf.eval(
+                    sdfPoint + (rearPoint - p) * uSdfScale
+                ).a;
+                float rearFirstDistance = clamp(
+                    max((sdfRearFirst - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearFirstHeight = sqrt(max(
+                    2.0 * glassProfileRadius * rearFirstDistance -
+                        rearFirstDistance * rearFirstDistance,
+                    0.0
+                ));
+                rearTravel = (
+                    GLASS_THICKNESS_PX + glassHeight + rearFirstHeight
+                ) / max(-refractedRay.z, 0.15);
+                rearPoint = clamp(
+                    p + refractedRay.xy * rearTravel,
+                    float2(0.0),
+                    uResolution
+                );
+                float2 rearSdfPoint =
+                    sdfPoint + (rearPoint - p) * uSdfScale;
+                float sdfRear = uGlyphSdf.eval(rearSdfPoint).a;
+                float rearDistance = clamp(
+                    max((sdfRear - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearHeight = sqrt(max(
+                    2.0 * glassProfileRadius * rearDistance -
+                        rearDistance * rearDistance,
+                    0.0
+                ));
+
+                // The rear cap faces the opposite direction, so its normal's
+                // in-plane components have the opposite sign to the front cap.
+                float sdfRearLeft = uGlyphSdf.eval(
+                    rearSdfPoint - float2(sampleStep.x, 0.0)
+                ).a;
+                float sdfRearRight = uGlyphSdf.eval(
+                    rearSdfPoint + float2(sampleStep.x, 0.0)
+                ).a;
+                float sdfRearTop = uGlyphSdf.eval(
+                    rearSdfPoint - float2(0.0, sampleStep.y)
+                ).a;
+                float sdfRearBottom = uGlyphSdf.eval(
+                    rearSdfPoint + float2(0.0, sampleStep.y)
+                ).a;
+                float rearLeftDistance = clamp(
+                    max((sdfRearLeft - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearRightDistance = clamp(
+                    max((sdfRearRight - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearTopDistance = clamp(
+                    max((sdfRearTop - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearBottomDistance = clamp(
+                    max((sdfRearBottom - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearHeightLeft = sqrt(max(
+                    2.0 * glassProfileRadius * rearLeftDistance -
+                        rearLeftDistance * rearLeftDistance,
+                    0.0
+                ));
+                float rearHeightRight = sqrt(max(
+                    2.0 * glassProfileRadius * rearRightDistance -
+                        rearRightDistance * rearRightDistance,
+                    0.0
+                ));
+                float rearHeightTop = sqrt(max(
+                    2.0 * glassProfileRadius * rearTopDistance -
+                        rearTopDistance * rearTopDistance,
+                    0.0
+                ));
+                float rearHeightBottom = sqrt(max(
+                    2.0 * glassProfileRadius * rearBottomDistance -
+                        rearBottomDistance * rearBottomDistance,
+                    0.0
+                ));
+                float rearHeightGradientX =
+                    (rearHeightRight - rearHeightLeft) / 8.5;
+                float rearHeightGradientY =
+                    (rearHeightBottom - rearHeightTop) / 8.5;
+                float3 glassRearNormal = normalize(float3(
+                    rearHeightGradientX,
+                    rearHeightGradientY,
+                    1.0
+                ));
+
+                // Apply glass-to-air Snell refraction at the curved rear cap.
+                // Total internal reflection falls back to the known-good
+                // front-only mapping instead of generating an unstable ray.
+                float rearIncidentCosine = clamp(
+                    -dot(glassRearNormal, refractedRay),
+                    0.0,
+                    1.0
+                );
+                float rearEta = GLASS_IOR;
+                float rearSnellK = 1.0 -
+                    rearEta * rearEta *
+                    (1.0 - rearIncidentCosine * rearIncidentCosine);
+                float rearSnellGate = smoothstep(0.0, 0.08, rearSnellK);
+                float rearSqrtK = sqrt(max(rearSnellK, 0.0));
+                float3 glassBackExitRay = normalize(
+                    refractedRay * rearEta +
+                    glassRearNormal * (
+                        rearEta * rearIncidentCosine - rearSqrtK
+                    )
+                );
+                float rearInterfaceF0 = pow(
+                    (GLASS_IOR - 1.0) / (GLASS_IOR + 1.0),
+                    2.0
+                );
+                float rearInterfaceFresnel = rearInterfaceF0 +
+                    (1.0 - rearInterfaceF0) *
+                    pow(1.0 - rearIncidentCosine, 5.0);
+                float rearInterfaceTransmission =
+                    (1.0 - rearInterfaceFresnel) *
+                    step(0.0, rearSnellK);
+
+                // Continue a short distance from the rear interface to the
+                // wallpaper plane. Keep the already accepted front Jacobian
+                // as a correction rather than using it in place of the rear
+                // intersection or the rear-surface normal.
+                const float GLASS_BACKGROUND_GAP_PX = 13.0;
+                float backExitTravel =
+                    GLASS_BACKGROUND_GAP_PX /
+                    max(-glassBackExitRay.z, 0.15);
+                float2 frontJacobianCorrection =
+                    glassRefractionOffset - baseGlassRefractionOffset;
+                float2 curvedTwoInterfaceOffset =
+                    (rearPoint - p) * glassEdgePull +
+                    frontJacobianCorrection +
+                    glassBackExitRay.xy * backExitTravel;
+
+                float rearSurfaceCoverage = smoothstep(
+                    0.50,
+                    0.60,
+                    sdfRear
+                );
+                float curvedShoulderCoverage =
+                    smoothstep(0.025, 0.16, glassProfileSlope) *
+                    glassProfileCoverage;
+                glassBackInterfaceBlend = 0.72 *
+                    rearSurfaceCoverage *
+                    curvedShoulderCoverage *
+                    rearSnellGate *
+                    rearInterfaceTransmission;
+                glassWarp = mix(
+                    glassRefractionOffset,
+                    curvedTwoInterfaceOffset,
+                    glassBackInterfaceBlend
+                );
+            }
+
+            glassWarp += tilt * 1.8;
             float2 warp = mix(glassWarp, solidWarp, solidMode);
             float2 samplePoint = clamp(
                 p + warp,
@@ -855,78 +1038,10 @@ class LiquidWallpaperRenderer(
                 warmLightTransport,
                 warmLightPresence * 0.42
             );
-            // First-order internal return from a locally parallel rear glass
-            // interface. The front interface has already refracted the ray;
-            // at the back interface, Fresnel reflects a small portion while
-            // the rest exits. The reflected portion keeps its screen-space
-            // direction, travels back through the slab, and reaches the front
-            // at a second, displaced wallpaper coordinate.
-            //
-            // This is a bounded slab approximation, not a full curved rear
-            // surface solve. Its colour comes only from the sampled wallpaper,
-            // so amber/blue/black echoes arise naturally from the environment.
-            float glassRearInterfaceF0 = pow(
-                (GLASS_IOR - 1.0) / (GLASS_IOR + 1.0),
-                2.0
-            );
-            float glassRearIncidenceCosine = clamp(
-                abs(refractedRay.z),
-                0.0,
-                1.0
-            );
-            float glassRearInterfaceFresnel =
-                glassRearInterfaceF0 +
-                (1.0 - glassRearInterfaceF0) *
-                    pow(1.0 - glassRearIncidenceCosine, 5.0);
-            float2 glassInternalReturnPoint = clamp(
-                samplePoint + glassRefractionOffset,
-                float2(0.0),
-                uResolution
-            );
-            float3 glassInternalReturnSample = warmRetainedTransmission;
-            float glassInternalReturnWeight = min(
-                glassRearInterfaceFresnel *
-                    (1.0 - glassVolumeFresnel) *
-                    (1.0 - glassVolumeFresnel) *
-                    glassVolumeRegion * 1.5,
-                0.075
-            ) * (1.0 - solidMode);
-            float3 glassSecondOrderReturnSample =
-                glassInternalReturnSample;
-            // A second slab order requires one additional internal round trip:
-            // reflect once at the front interface and once at the rear. Its
-            // energy is therefore attenuated by both Fresnel reflectances.
-            // The additional displacement is two more in-medium ray segments.
-            float glassSecondOrderReturnWeight = min(
-                glassInternalReturnWeight *
-                    glassRearInterfaceFresnel *
-                    glassRearInterfaceFresnel,
-                0.025
-            );
-            float2 glassSecondOrderReturnPoint = clamp(
-                glassInternalReturnPoint + glassRefractionOffset * 2.0,
-                float2(0.0),
-                uResolution
-            );
-            if (glassInternalReturnWeight > 0.001) {
-                glassInternalReturnSample =
-                    uWallpaper.eval(glassInternalReturnPoint).rgb;
-            }
-            if (glassSecondOrderReturnWeight > 0.001) {
-                glassSecondOrderReturnSample =
-                    uWallpaper.eval(glassSecondOrderReturnPoint).rgb;
-            }
-            float glassTotalInternalReturnWeight = min(
-                glassInternalReturnWeight +
-                    glassSecondOrderReturnWeight,
-                0.10
-            );
-            warmRetainedTransmission =
-                warmRetainedTransmission *
-                    (1.0 - glassTotalInternalReturnWeight) +
-                glassInternalReturnSample * glassInternalReturnWeight +
-                glassSecondOrderReturnSample *
-                    glassSecondOrderReturnWeight;
+            // Transmission now passes through the curved rear interface
+            // above. Do not add the old parallel-slab Fresnel return samples:
+            // they boosted local colour without placing a physically correct
+            // opposite-side image and were mostly erased by broad scattering.
             float3 volumeScatteredTransmission = clamp(
                 warmRetainedTransmission * 1.10 +
                     float3(0.016, 0.020, 0.028),
