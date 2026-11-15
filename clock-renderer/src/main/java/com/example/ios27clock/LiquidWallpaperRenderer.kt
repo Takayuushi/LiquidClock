@@ -320,14 +320,81 @@ class LiquidWallpaperRenderer(
             float heightCurvatureY =
                 (heightBottom - 2.0 * glassHeight + heightTop) /
                 (GLASS_HEIGHT_SAMPLE_STEP * GLASS_HEIGHT_SAMPLE_STEP);
+            // Complete the local 2D curvature tensor with the mixed derivative.
+            // Diagonal wallpaper bands exercise this cross-axis curvature; the
+            // earlier diagonal-only Jacobian could not represent their coupled
+            // horizontal/vertical ray convergence. Sample only the shared SDF
+            // height field, and skip these extra taps for Solid/Frosted.
+            float heightCurvatureXY = 0.0;
+            if (solidMode < 0.5) {
+                float sdfTopLeft = uGlyphSdf.eval(
+                    sdfPoint - sampleStep
+                ).a;
+                float sdfTopRight = uGlyphSdf.eval(
+                    sdfPoint + float2(sampleStep.x, -sampleStep.y)
+                ).a;
+                float sdfBottomLeft = uGlyphSdf.eval(
+                    sdfPoint + float2(-sampleStep.x, sampleStep.y)
+                ).a;
+                float sdfBottomRight = uGlyphSdf.eval(
+                    sdfPoint + sampleStep
+                ).a;
+                float heightTopLeftDistance = clamp(
+                    max((sdfTopLeft - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float heightTopRightDistance = clamp(
+                    max((sdfTopRight - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float heightBottomLeftDistance = clamp(
+                    max((sdfBottomLeft - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float heightBottomRightDistance = clamp(
+                    max((sdfBottomRight - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float heightTopLeft = sqrt(max(
+                    2.0 * glassProfileRadius * heightTopLeftDistance -
+                        heightTopLeftDistance * heightTopLeftDistance,
+                    0.0
+                ));
+                float heightTopRight = sqrt(max(
+                    2.0 * glassProfileRadius * heightTopRightDistance -
+                        heightTopRightDistance * heightTopRightDistance,
+                    0.0
+                ));
+                float heightBottomLeft = sqrt(max(
+                    2.0 * glassProfileRadius * heightBottomLeftDistance -
+                        heightBottomLeftDistance * heightBottomLeftDistance,
+                    0.0
+                ));
+                float heightBottomRight = sqrt(max(
+                    2.0 * glassProfileRadius * heightBottomRightDistance -
+                        heightBottomRightDistance * heightBottomRightDistance,
+                    0.0
+                ));
+                heightCurvatureXY = (
+                    heightBottomRight - heightBottomLeft -
+                    heightTopRight + heightTopLeft
+                ) / (4.0 * GLASS_HEIGHT_SAMPLE_STEP * GLASS_HEIGHT_SAMPLE_STEP);
+            }
             float refractiveCurvatureScale =
                 GLASS_THICKNESS_PX * 0.342;
             float rayMapJacobianX = 1.0 +
                 refractiveCurvatureScale * heightCurvatureX;
             float rayMapJacobianY = 1.0 +
                 refractiveCurvatureScale * heightCurvatureY;
+            float rayMapJacobianXY =
+                refractiveCurvatureScale * heightCurvatureXY;
             float rayMapDeterminant = clamp(
-                rayMapJacobianX * rayMapJacobianY,
+                rayMapJacobianX * rayMapJacobianY -
+                    rayMapJacobianXY * rayMapJacobianXY,
                 0.88,
                 1.12
             );
