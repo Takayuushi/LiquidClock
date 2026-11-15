@@ -1615,13 +1615,19 @@ class LiquidWallpaperRenderer(
                 float3(glassReflectionSourceLuma);
             float3 glassReflectionFaceChroma =
                 colour - float3(glassReflectionFaceLuma);
+            // Let the actual reflected environment contribute more of its
+            // chroma to the dark glass body. This is hue-neutral: every channel
+            // is transferred by the same factor, and only colours present in
+            // the reflected wallpaper can enter the material. Dark faces receive
+            // more of this pickup through the existing optical weighting, while
+            // bright faces retain their transmitted highlights.
             float3 glassReflectedChromaTransfer =
                 (glassReflectionSourceChroma - glassReflectionFaceChroma) *
-                glassInteriorReflectionWeight * 0.42;
+                glassInteriorReflectionWeight * 0.58;
             float3 glassChromaPositiveHeadroom =
-                max(float3(1.0) - colour, float3(0.0)) * 0.12;
+                max(float3(1.0) - colour, float3(0.0)) * 0.16;
             float3 glassChromaNegativeHeadroom =
-                max(colour, float3(0.0)) * 0.12;
+                max(colour, float3(0.0)) * 0.16;
             glassReflectedChromaTransfer = clamp(
                 glassReflectedChromaTransfer,
                 -glassChromaNegativeHeadroom,
