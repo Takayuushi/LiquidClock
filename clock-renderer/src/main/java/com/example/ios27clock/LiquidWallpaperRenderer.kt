@@ -1580,31 +1580,60 @@ class LiquidWallpaperRenderer(
             float glassPathCoupledReflectionWeight =
                 0.055 * glassBroadFaceReflectionLobe *
                 glassPathScatterRoughness;
-            float glassInteriorReflectionWeight = clamp(
-                0.11 * glassInteriorReflectionLobe +
-                    glassPathCoupledReflectionWeight,
-                0.0,
-                0.165
-            ) * glassFaceDarkness * (1.0 - solidMode);
-            // Rough-surface reflection should use the same anisotropic
-            // wallpaper footprint that already merges narrow bands in the
-            // transmitted glass. This is a prefiltered environment radiance,
-            // not an extra tint: it reuses the existing cross-band samples and
-            // lets nearby real wallpaper colour enter the broad reflected face.
-            // Keep the isotropic path-integrated environment as the other lobe.
+            // Keep the existing narrow and broad lobe coefficients, but let
+            // each lobe select its own environment radiance. The shared scale
+            // preserves the original combined 0.165 energy ceiling; applying
+            // the face/material gate to both weights preserves the same dark-
+            // face and Liquid-Glass-only constraints.
+            float glassNarrowReflectionUnboundedWeight =
+                0.11 * glassInteriorReflectionLobe;
+            float glassBroadReflectionUnboundedWeight =
+                glassPathCoupledReflectionWeight;
+            float glassReflectionUnboundedWeight =
+                glassNarrowReflectionUnboundedWeight +
+                glassBroadReflectionUnboundedWeight;
+            float glassReflectionEnergyScale = min(
+                1.0,
+                0.165 / max(glassReflectionUnboundedWeight, 0.0001)
+            );
+            float glassInteriorReflectionGate =
+                glassFaceDarkness * (1.0 - solidMode);
+            float glassNarrowReflectionWeight =
+                glassNarrowReflectionUnboundedWeight *
+                glassReflectionEnergyScale *
+                glassInteriorReflectionGate;
+            float glassBroadReflectionWeight =
+                glassBroadReflectionUnboundedWeight *
+                glassReflectionEnergyScale *
+                glassInteriorReflectionGate;
+            float glassInteriorReflectionWeight =
+                glassNarrowReflectionWeight +
+                glassBroadReflectionWeight;
+            // Rough-surface reflection uses the anisotropic wallpaper
+            // footprint already computed for transmission. It is the broad
+            // lobe's source; the narrow lobe retains the directional/view
+            // environment. Neither source adds a texture evaluation.
             float3 glassRoughReflectionEnvironment = mix(
                 frostedWallpaper,
                 microfacetTransmission,
                 0.65
             );
+            float3 glassNarrowReflectionSource = mix(
+                directionalEnvironmentReflection,
+                environmentReflection,
+                0.34
+            );
+            // Blend sources according to their actual local lobe weights,
+            // rather than a fixed 35% broad-source fraction. This preserves
+            // the total reflection weight while allowing the broad reflection
+            // to follow optical path depth and surface orientation.
+            float glassBroadReflectionSourceShare =
+                glassBroadReflectionWeight /
+                max(glassInteriorReflectionWeight, 0.0001);
             float3 glassInteriorReflectionSource = mix(
-                mix(
-                    directionalEnvironmentReflection,
-                    environmentReflection,
-                    0.34
-                ),
+                glassNarrowReflectionSource,
                 glassRoughReflectionEnvironment,
-                0.35
+                glassBroadReflectionSourceShare
             );
             // Transfer a restrained amount of the reflected environment's
             // actual chroma into the dark glass face. The positive-only energy
