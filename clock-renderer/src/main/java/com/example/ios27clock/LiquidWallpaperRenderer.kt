@@ -1319,10 +1319,29 @@ class LiquidWallpaperRenderer(
             // local wallpaper volume. The broad reflection blends into the
             // transmitted haze while the later key/fill glints preserve crisp
             // glass contours and specular definition.
+            // Let the broad reflected environment follow both the
+            // convex surface and the actual Beer-Lambert path through the
+            // glass. Thick, strongly scattering regions receive a softer
+            // reflected environment; thin regions retain a clearer image.
+            // This couples surface reflection to internal transport without
+            // increasing reflection energy or adding another wallpaper tap.
+            float glassPathScatterRoughness = smoothstep(
+                0.30,
+                0.58,
+                glassOpticalDepth
+            );
+            float glassSurfaceCurvatureRoughness = smoothstep(
+                0.08,
+                0.48,
+                glassProfileSlope
+            );
             float glassReflectionRoughness = mix(
                 0.22,
                 0.30,
-                smoothstep(0.08, 0.48, glassProfileSlope)
+                max(
+                    glassSurfaceCurvatureRoughness,
+                    glassPathScatterRoughness
+                )
             );
             float3 glassSoftEnvironmentReflection = mix(
                 chromaticEnvironmentReflection,
