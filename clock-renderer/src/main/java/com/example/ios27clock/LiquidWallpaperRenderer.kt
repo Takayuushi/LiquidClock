@@ -891,15 +891,42 @@ class LiquidWallpaperRenderer(
                     glassVolumeRegion * 1.5,
                 0.075
             ) * (1.0 - solidMode);
+            float3 glassSecondOrderReturnSample =
+                glassInternalReturnSample;
+            // A second slab order requires one additional internal round trip:
+            // reflect once at the front interface and once at the rear. Its
+            // energy is therefore attenuated by both Fresnel reflectances.
+            // The additional displacement is two more in-medium ray segments.
+            float glassSecondOrderReturnWeight = min(
+                glassInternalReturnWeight *
+                    glassRearInterfaceFresnel *
+                    glassRearInterfaceFresnel,
+                0.025
+            );
+            float2 glassSecondOrderReturnPoint = clamp(
+                glassInternalReturnPoint + glassRefractionOffset * 2.0,
+                float2(0.0),
+                uResolution
+            );
             if (glassInternalReturnWeight > 0.001) {
                 glassInternalReturnSample =
                     uWallpaper.eval(glassInternalReturnPoint).rgb;
             }
-            warmRetainedTransmission = mix(
-                warmRetainedTransmission,
-                glassInternalReturnSample,
-                glassInternalReturnWeight
+            if (glassSecondOrderReturnWeight > 0.001) {
+                glassSecondOrderReturnSample =
+                    uWallpaper.eval(glassSecondOrderReturnPoint).rgb;
+            }
+            float glassTotalInternalReturnWeight = min(
+                glassInternalReturnWeight +
+                    glassSecondOrderReturnWeight,
+                0.10
             );
+            warmRetainedTransmission =
+                warmRetainedTransmission *
+                    (1.0 - glassTotalInternalReturnWeight) +
+                glassInternalReturnSample * glassInternalReturnWeight +
+                glassSecondOrderReturnSample *
+                    glassSecondOrderReturnWeight;
             float3 volumeScatteredTransmission = clamp(
                 warmRetainedTransmission * 1.10 +
                     float3(0.016, 0.020, 0.028),
