@@ -1080,32 +1080,34 @@ class LiquidWallpaperRenderer(
                 0.60,
                 glassVolumeRegion
             );
-            // The curved shoulder has a longer internal optical path than
-            // the flatter centre. Let the existing convex profile's slope and
-            // coverage increase in-scattering through that shoulder, then fade
-            // continuously toward the centre of every stroke.
-            // This is the same geometry-derived path response for all glyphs.
+            // The convex profile and traced rear interface define a shared
+            // relative optical path through every glyph. Convert that path to
+            // a physical pixel length, then use Beer-Lambert attenuation to
+            // split the transmitted radiance into a direct lobe and a broad
+            // in-scattered lobe. The removed direct energy is not independently
+            // averaged into both luma and chroma and then mixed a second time.
             float glassCurvedPathWeight =
                 smoothstep(0.08, 0.48, glassProfileSlope) *
                 glassProfileCoverage;
             float glassOpticalPath =
                 mix(0.90, 1.0, smoothstep(1.0, 22.0, insideDistance)) +
                 0.18 * glassCurvedPathWeight;
-            float glassAtmosphericScatter =
-                0.62 * glassAtmosphericCoverage * glassOpticalPath;
-            // Keep a restrained directional component inside the otherwise
-            // broad volume scatter so the face stays liquid and image-aware,
-            // rather than becoming a flat frosted overlay.
-            // Keep the broad #56 atmospheric body, but restore more of
-            // the directional, colour-bearing microfacet transmission.
-            // #56's 82% isotropic target over-averaged saturated orange/blue
-            // energy; 62% keeps the soft environment dominant while allowing
-            // the refracted wallpaper structure to remain chromatically legible.
-            // Keep the accepted #135 volume luminance and atmospheric softness,
-            // but retain a little more of the directional colour where it carries
-            // genuinely different chroma from the local blurred environment.
-            // Separate luma from chroma so this refinement does not brighten the
-            // face or undo #135's luminance-aware lighting response.
+            float glassPathLength =
+                GLASS_THICKNESS_PX * glassOpticalPath;
+            const float GLASS_EXTINCTION_PER_PX = 0.0105;
+            const float GLASS_SCATTERING_ALBEDO = 0.88;
+            float glassOpticalDepth =
+                GLASS_EXTINCTION_PER_PX * glassPathLength;
+            float glassDirectTransmittance = exp(-glassOpticalDepth);
+            float glassInScatterEnergy =
+                (1.0 - glassDirectTransmittance) *
+                GLASS_SCATTERING_ALBEDO;
+
+            // Keep the existing image-adaptive chroma and band response, but
+            // combine the directional transmission and broad environment into
+            // one RGB in-scatter source. The broad lobe retains the local
+            // refracted colour rather than separately averaging most luma and
+            // chroma toward the blurred wallpaper.
             float volumeTransmissionLuma = dot(
                 volumeScatteredTransmission,
                 float3(0.2126, 0.7152, 0.0722)
@@ -1126,51 +1128,41 @@ class LiquidWallpaperRenderer(
                 0.16,
                 chromaticSeparation
             );
-            // Preserve a little more directional wallpaper chroma where
-            // the curved rear path is valid and the shared surface normal is
-            // strongly horizontal-facing. This helps coloured energy travel
-            // through those curved shoulders instead of being averaged into
-            // the broad environment. Luminance is deliberately unaffected.
-            // The response is bounded and shared by every glyph.
+            // Preserve directional colour where the curved rear path is valid
+            // and the shared surface normal is strongly horizontal-facing.
+            // This remains a small geometry-conditioned adjustment, not a
+            // glyph-specific or colour-specific branch.
             float glassCurvedShoulderColourTransport =
                 glassBackInterfaceBlend * horizontalShoulder;
             float glassCurvatureDirectionalRetention =
                 0.035 * glassCurvedShoulderColourTransport;
             float glassVolumeIsotropicWeight = clamp(
-                mix(0.62, 0.58, chromaticRetention) -
+                mix(0.62, 0.68, bandContrast) -
+                    0.04 * chromaticRetention -
                     glassCurvatureDirectionalRetention,
                 0.55,
-                0.62
+                0.68
             );
-            // Let strong, narrow wallpaper bands scatter a little more
-            // of their luminance into the broad glass environment. Keep the
-            // chroma blend independent below, so this smooths stripe contrast
-            // without washing out the orange/cyan colour carried by transmission.
-            // Low-contrast wallpaper retains the existing 62% isotropic balance.
-            float glassVolumeLumaIsotropicWeight = mix(
-                0.62,
-                0.68,
-                bandContrast
-            );
-            float glassVolumeBaseLuma = mix(
-                volumeTransmissionLuma,
-                frostedWallpaperLuma,
-                glassVolumeLumaIsotropicWeight
-            );
-            float3 glassVolumeChroma = mix(
-                volumeTransmissionChroma,
-                frostedWallpaperChroma,
+            float3 glassBroadInScatter = mix(
+                volumeScatteredTransmission,
+                frostedWallpaper,
                 glassVolumeIsotropicWeight
             );
-            float3 glassVolumeInScatter = clamp(
-                float3(glassVolumeBaseLuma) + glassVolumeChroma,
+
+            // Two-lobe transport: attenuated direct refracted radiance plus
+            // the corresponding fraction of broad, colour-bearing in-scatter.
+            // The weights are energy-consistent: direct T plus scattered
+            // (1-T)*albedo, with the remainder representing absorption.
+            float3 glassTwoLobeTransport = clamp(
+                glassTransmitted * glassDirectTransmittance +
+                    glassBroadInScatter * glassInScatterEnergy,
                 0.0,
                 1.0
             );
             glassTransmitted = mix(
                 glassTransmitted,
-                glassVolumeInScatter,
-                glassAtmosphericScatter
+                glassTwoLobeTransport,
+                glassAtmosphericCoverage
             );
             // Bright-pass bloom is screen-composited at low strength so
             // illuminated regions spread softly without turning the complete
