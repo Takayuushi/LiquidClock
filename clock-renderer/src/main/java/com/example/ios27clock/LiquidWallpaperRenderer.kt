@@ -137,6 +137,109 @@ class LiquidWallpaperRenderer(
             );
         }
 
+        // Trace one narrow in-scattering direction from an interior point
+        // to the local rear-interface tangent plane, then refract it into the
+        // air gap and onto the backing-wallpaper plane. A failed/invalid ray
+        // returns the legacy projected-path lookup so edge/TIR cases stay
+        // bounded rather than producing extreme UVs.
+        float4 scatterRayToWallpaper(
+            float3 pathPosition,
+            float2 fallbackPosition,
+            float3 scatterDirection,
+            float3 rearPlanePoint,
+            float3 rearPlaneNormal,
+            float2 frontCorrection,
+            float rearPathValidity,
+            float glassPathLength
+        ) {
+            float planeDenominator = dot(
+                rearPlaneNormal,
+                scatterDirection
+            );
+            float safePlaneDenominator = min(
+                planeDenominator,
+                -0.15
+            );
+            float planeTravel = dot(
+                rearPlaneNormal,
+                rearPlanePoint - pathPosition
+            ) / safePlaneDenominator;
+            float planeTravelValidity =
+                step(0.15, -planeDenominator) *
+                step(0.0, planeTravel) *
+                step(planeTravel, glassPathLength * 2.0 + 2.0);
+
+            float3 rearHit = pathPosition +
+                scatterDirection * max(planeTravel, 0.0);
+            float incidentCosine = clamp(
+                -dot(rearPlaneNormal, scatterDirection),
+                0.0,
+                1.0
+            );
+            const float SCATTER_GLASS_IOR = 1.52;
+            float snellK = 1.0 -
+                SCATTER_GLASS_IOR * SCATTER_GLASS_IOR *
+                (1.0 - incidentCosine * incidentCosine);
+            float snellValidity = smoothstep(0.0, 0.08, snellK);
+            float3 exitRay = normalize(
+                scatterDirection * SCATTER_GLASS_IOR +
+                rearPlaneNormal * (
+                    SCATTER_GLASS_IOR * incidentCosine -
+                    sqrt(max(snellK, 0.0))
+                )
+            );
+            float exitDirectionValidity = step(0.15, -exitRay.z);
+            float sampleValidity = clamp(
+                rearPathValidity *
+                    planeTravelValidity *
+                    snellValidity *
+                    exitDirectionValidity,
+                0.0,
+                1.0
+            );
+
+            float interfaceF0 = pow(
+                (SCATTER_GLASS_IOR - 1.0) /
+                    (SCATTER_GLASS_IOR + 1.0),
+                2.0
+            );
+            float interfaceFresnel = interfaceF0 +
+                (1.0 - interfaceF0) *
+                pow(1.0 - incidentCosine, 5.0);
+            float interfaceTransmission =
+                (1.0 - interfaceFresnel) * step(0.0, snellK);
+            float incomingBeerTransmission =
+                exp(-0.0056 * max(planeTravel, 0.0));
+
+            const float SCATTER_BACKGROUND_GAP_PX = 13.0;
+            float backgroundTravel =
+                SCATTER_BACKGROUND_GAP_PX /
+                max(-exitRay.z, 0.15);
+            float2 mappedWallpaperPoint =
+                rearHit.xy +
+                frontCorrection +
+                exitRay.xy * backgroundTravel;
+            float2 lookupPoint = clamp(
+                mix(
+                    fallbackPosition,
+                    mappedWallpaperPoint,
+                    sampleValidity
+                ),
+                float2(0.0),
+                uResolution
+            );
+            float sourceTransmission = mix(
+                1.0,
+                interfaceTransmission * incomingBeerTransmission,
+                sampleValidity
+            );
+            return float4(
+                lookupPoint,
+                sourceTransmission,
+                sampleValidity
+            );
+        }
+
         half4 main(float2 p) {
             float coverage = uGlyphMask.eval(p).a;
             if (coverage < 0.002) {
@@ -495,6 +598,13 @@ class LiquidWallpaperRenderer(
                 (GLASS_THICKNESS_PX + 2.0 * glassHeight) *
                 length(refractedRay) /
                 max(-refractedRay.z, 0.15);
+            // The central rear hit supplies one local tangent plane for the
+            // symmetric in-scattering rays. Invalid rear hits keep the legacy
+            // projected-path fallback active.
+            float2 glassScatterRearPlanePoint = glassInternalPathEnd;
+            float glassScatterRearHeight = glassHeight;
+            float3 glassScatterRearNormal = float3(0.0, 0.0, 1.0);
+            float glassScatterRearValidity = 0.0;
             if (solidMode < 0.5) {
                 float rearTravel = (
                     GLASS_THICKNESS_PX + 2.0 * glassHeight
@@ -630,6 +740,12 @@ class LiquidWallpaperRenderer(
                     1.0
                 ));
 
+                // Retain the actual curved rear hit and local normal for the
+                // two directional in-scattering rays evaluated below.
+                glassScatterRearPlanePoint = rearPoint;
+                glassScatterRearHeight = rearHeight;
+                glassScatterRearNormal = glassRearNormal;
+
                 // Apply glass-to-air Snell refraction at the curved rear cap.
                 // Total internal reflection falls back to the known-good
                 // front-only mapping instead of generating an unstable ray.
@@ -685,6 +801,7 @@ class LiquidWallpaperRenderer(
                     rearSurfaceCoverage *
                     rearSnellGate *
                     rearInterfaceTransmission;
+                glassScatterRearValidity = rearPathValidity;
                 // Use the rear intersection for internal path integration
                 // only to the extent that the SDF hit and glass-to-air exit
                 // are valid. Otherwise retain the nominal front-to-rear ray.
@@ -794,117 +911,213 @@ class LiquidWallpaperRenderer(
                 0.64
             );
 
-            // Four Beer-Lambert quadrature samples follow the projected
-            // front-to-rear ray through the curved glass. Four diagonal
-            // environment samples retain a local broad-light reference.
-            // This reassigns the existing eight wallpaper taps; it adds no
-            // texture evaluations and remains shared by every glyph.
-            float blurRadius = mix(44.0, 38.0, solidMode);
-            float2 blurDiagonal = float2(
-                blurRadius * 0.7071,
-                blurRadius * 0.7071
-            );
-            float3 blurA = uWallpaper.eval(clamp(
-                mix(
-                    mix(p, glassInternalPathEnd, 0.125),
+            // Reuse the existing eight wallpaper evaluations as a
+            // four-depth by two-direction single-scattering quadrature.
+            // Each pair is symmetric around the central internal ray; its
+            // rays intersect the shared rear tangent plane, refract through
+            // glass-to-air Snell, then sample the backing wallpaper plane.
+            // Solid/Frosted retains its exact original eight sample positions.
+            float3 blurA;
+            float3 blurB;
+            float3 blurC;
+            float3 blurD;
+            float3 blurE;
+            float3 blurF;
+            float3 blurG;
+            float3 blurH;
+            if (solidMode < 0.5) {
+                float3 glassPathDirection = normalize(refractedRay);
+                float2 scatterAxis2 = float2(
+                    -glassPathDirection.y,
+                    glassPathDirection.x
+                );
+                float scatterAxisLength = length(scatterAxis2);
+                scatterAxis2 = scatterAxisLength > 0.0001
+                    ? scatterAxis2 / scatterAxisLength
+                    : float2(1.0, 0.0);
+                float3 scatterAxis = float3(scatterAxis2, 0.0);
+                // A narrow 8-degree symmetric cone avoids a one-sided colour
+                // shift while providing distinct incident wallpaper rays.
+                const float SCATTER_ANGLE_COS = 0.9902680687;
+                const float SCATTER_ANGLE_SIN = 0.1391731010;
+                float3 scatterDirectionA = normalize(
+                    glassPathDirection * SCATTER_ANGLE_COS +
+                    scatterAxis * SCATTER_ANGLE_SIN
+                );
+                float3 scatterDirectionB = normalize(
+                    glassPathDirection * SCATTER_ANGLE_COS -
+                    scatterAxis * SCATTER_ANGLE_SIN
+                );
+
+                float3 frontPathPosition = float3(p, glassHeight);
+                float3 rearPathPosition = float3(
+                    glassInternalPathEnd,
+                    mix(
+                        -GLASS_THICKNESS_PX - glassHeight,
+                        -GLASS_THICKNESS_PX - glassScatterRearHeight,
+                        glassScatterRearValidity
+                    )
+                );
+                float3 rearTangentPoint = float3(
+                    glassScatterRearPlanePoint,
+                    -GLASS_THICKNESS_PX - glassScatterRearHeight
+                );
+                float2 frontCorrection =
+                    glassRefractionOffset - baseGlassRefractionOffset +
+                    tilt * 1.8;
+
+                float3 pathPositionA = mix(
+                    frontPathPosition,
+                    rearPathPosition,
+                    0.125
+                );
+                float3 pathPositionB = mix(
+                    frontPathPosition,
+                    rearPathPosition,
+                    0.375
+                );
+                float3 pathPositionC = mix(
+                    frontPathPosition,
+                    rearPathPosition,
+                    0.625
+                );
+                float3 pathPositionD = mix(
+                    frontPathPosition,
+                    rearPathPosition,
+                    0.875
+                );
+
+                float2 fallbackA = mix(p, glassInternalPathEnd, 0.125);
+                float2 fallbackB = mix(p, glassInternalPathEnd, 0.375);
+                float2 fallbackC = mix(p, glassInternalPathEnd, 0.625);
+                float2 fallbackD = mix(p, glassInternalPathEnd, 0.875);
+
+                float4 lookupA = scatterRayToWallpaper(
+                    pathPositionA, fallbackA, scatterDirectionA,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupB = scatterRayToWallpaper(
+                    pathPositionA, fallbackA, scatterDirectionB,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupC = scatterRayToWallpaper(
+                    pathPositionB, fallbackB, scatterDirectionA,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupD = scatterRayToWallpaper(
+                    pathPositionB, fallbackB, scatterDirectionB,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupE = scatterRayToWallpaper(
+                    pathPositionC, fallbackC, scatterDirectionA,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupF = scatterRayToWallpaper(
+                    pathPositionC, fallbackC, scatterDirectionB,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupG = scatterRayToWallpaper(
+                    pathPositionD, fallbackD, scatterDirectionA,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+                float4 lookupH = scatterRayToWallpaper(
+                    pathPositionD, fallbackD, scatterDirectionB,
+                    rearTangentPoint, glassScatterRearNormal,
+                    frontCorrection, glassScatterRearValidity, glassPathLength
+                );
+
+                blurA = uWallpaper.eval(lookupA.xy).rgb * lookupA.z;
+                blurB = uWallpaper.eval(lookupB.xy).rgb * lookupB.z;
+                blurC = uWallpaper.eval(lookupC.xy).rgb * lookupC.z;
+                blurD = uWallpaper.eval(lookupD.xy).rgb * lookupD.z;
+                blurE = uWallpaper.eval(lookupE.xy).rgb * lookupE.z;
+                blurF = uWallpaper.eval(lookupF.xy).rgb * lookupF.z;
+                blurG = uWallpaper.eval(lookupG.xy).rgb * lookupG.z;
+                blurH = uWallpaper.eval(lookupH.xy).rgb * lookupH.z;
+            } else {
+                float blurRadius = mix(44.0, 38.0, solidMode);
+                float2 blurDiagonal = float2(
+                    blurRadius * 0.7071,
+                    blurRadius * 0.7071
+                );
+                blurA = uWallpaper.eval(clamp(
                     samplePoint + float2(blurRadius, 0.0),
-                    solidMode
-                ),
-                float2(0.0),
-                uResolution
-            )).rgb;
-            float3 blurB = uWallpaper.eval(clamp(
-                mix(
-                    mix(p, glassInternalPathEnd, 0.375),
+                    float2(0.0),
+                    uResolution
+                )).rgb;
+                blurB = uWallpaper.eval(clamp(
                     samplePoint - float2(blurRadius, 0.0),
-                    solidMode
-                ),
-                float2(0.0),
-                uResolution
-            )).rgb;
-            float3 blurC = uWallpaper.eval(clamp(
-                mix(
-                    mix(p, glassInternalPathEnd, 0.625),
+                    float2(0.0),
+                    uResolution
+                )).rgb;
+                blurC = uWallpaper.eval(clamp(
                     samplePoint + float2(0.0, blurRadius),
-                    solidMode
-                ),
-                float2(0.0),
-                uResolution
-            )).rgb;
-            float3 blurD = uWallpaper.eval(clamp(
-                mix(
-                    mix(p, glassInternalPathEnd, 0.875),
+                    float2(0.0),
+                    uResolution
+                )).rgb;
+                blurD = uWallpaper.eval(clamp(
                     samplePoint - float2(0.0, blurRadius),
-                    solidMode
-                ),
-                float2(0.0),
-                uResolution
-            )).rgb;
-            float3 blurE = uWallpaper.eval(
-                clamp(samplePoint + blurDiagonal, float2(0.0), uResolution)
-            ).rgb;
-            float3 blurF = uWallpaper.eval(
-                clamp(samplePoint - blurDiagonal, float2(0.0), uResolution)
-            ).rgb;
-            float3 blurG = uWallpaper.eval(
-                clamp(
-                    samplePoint + float2(blurDiagonal.x, -blurDiagonal.y),
                     float2(0.0),
                     uResolution
-                )
-            ).rgb;
-            float3 blurH = uWallpaper.eval(
-                clamp(
-                    samplePoint + float2(-blurDiagonal.x, blurDiagonal.y),
-                    float2(0.0),
-                    uResolution
-                )
-            ).rgb;
+                )).rgb;
+                blurE = uWallpaper.eval(
+                    clamp(samplePoint + blurDiagonal, float2(0.0), uResolution)
+                ).rgb;
+                blurF = uWallpaper.eval(
+                    clamp(samplePoint - blurDiagonal, float2(0.0), uResolution)
+                ).rgb;
+                blurG = uWallpaper.eval(
+                    clamp(
+                        samplePoint + float2(blurDiagonal.x, -blurDiagonal.y),
+                        float2(0.0),
+                        uResolution
+                    )
+                ).rgb;
+                blurH = uWallpaper.eval(
+                    clamp(
+                        samplePoint + float2(-blurDiagonal.x, blurDiagonal.y),
+                        float2(0.0),
+                        uResolution
+                    )
+                ).rgb;
+            }
+
+            // Average the symmetric angular pair at each depth, then integrate
+            // those four directional radiance estimates with the existing
+            // normalized Beer-Lambert interval weights.
             float3 pathIntegratedLight =
-                blurA * pathWeightA +
-                blurB * pathWeightB +
-                blurC * pathWeightC +
-                blurD * pathWeightD;
-            float3 diagonalEnvironment = (
+                (blurA + blurB) * (0.5 * pathWeightA) +
+                (blurC + blurD) * (0.5 * pathWeightB) +
+                (blurE + blurF) * (0.5 * pathWeightC) +
+                (blurG + blurH) * (0.5 * pathWeightD);
+            float3 legacyFrostedEnvironment = (
+                blurA + blurB + blurC + blurD +
                 blurE + blurF + blurG + blurH
-            ) * 0.25;
-            // Let Beer-Lambert optical depth determine how much of the
-            // broad environment comes from the actual curved internal path.
-            // Thin paths retain the established 36% quadrature share; thicker
-            // paths rise smoothly to 44%, reducing dependence on the nearby
-            // exit-plane proxy without increasing total energy or blur radius.
-            // Share the same Beer-Lambert path response with broad
-            // reflection roughness later in the shared Liquid Glass pass.
+            ) * 0.125;
+            // Retain the current optical-depth response for broad reflections.
+            // The Liquid Glass in-scatter source itself is now the directional
+            // Beer-Lambert quadrature, not a blend with unrelated exit-plane
+            // diagonal taps. Solid/Frosted retains its original eight-sample
+            // equal average and exact sample locations.
             float glassPathScatterRoughness = smoothstep(
                 0.30,
                 0.58,
                 glassOpticalDepth
             );
-            float glassPathIntegrationShare = mix(
-                0.36,
-                0.44,
-                glassPathScatterRoughness
-            );
-            float3 pathAwareEnvironment = mix(
-                diagonalEnvironment,
-                pathIntegratedLight,
-                glassPathIntegrationShare
-            );
-            float3 legacyFrostedEnvironment = (
-                blurA + blurB + blurC + blurD +
-                blurE + blurF + blurG + blurH
-            ) * 0.125;
-            // Solid/Frosted keeps its exact original eight-direction sample
-            // positions and equal weights. Only Liquid Glass uses the path
-            // quadrature; no material outside Glass inherits this experiment.
             float3 frostedWallpaper = mix(
                 legacyFrostedEnvironment,
-                pathAwareEnvironment,
+                pathIntegratedLight,
                 1.0 - solidMode
             );
-            // Extract bright energy before averaging so bright wallpaper bands
-            // create a soft, low-frequency glow through the glass instead of
-            // remaining only as sharp refracted lines.
+            // Extract bright energy from the same directional path samples so
+            // the bloom source remains spatially aligned with the in-scatter.
             float brightA = smoothstep(
                 0.14, 0.52,
                 dot(blurA, float3(0.2126, 0.7152, 0.0722))
@@ -938,24 +1151,29 @@ class LiquidWallpaperRenderer(
                 dot(blurH, float3(0.2126, 0.7152, 0.0722))
             );
             float3 pathIntegratedBrightBloom =
-                blurA * brightA * pathWeightA +
-                blurB * brightB * pathWeightB +
-                blurC * brightC * pathWeightC +
-                blurD * brightD * pathWeightD;
-            float3 diagonalBrightBloom = (
+                (blurA * brightA + blurB * brightB) *
+                    (0.5 * pathWeightA) +
+                (blurC * brightC + blurD * brightD) *
+                    (0.5 * pathWeightB) +
+                (blurE * brightE + blurF * brightF) *
+                    (0.5 * pathWeightC) +
+                (blurG * brightG + blurH * brightH) *
+                    (0.5 * pathWeightD);
+            float3 legacyBrightBloom = (
+                blurA * brightA + blurB * brightB +
+                blurC * brightC + blurD * brightD +
                 blurE * brightE + blurF * brightF +
                 blurG * brightG + blurH * brightH
-            ) * 0.25;
-            // Keep bloom's spatial/energy weighting consistent with the
-            // path-integrated in-scatter source above. The former equal
-            // eight-tap average over-weighted late path samples and ignored
-            // Beer-Lambert attenuation, so bloom could reintroduce bright
-            // bands that the transport integration had already softened.
-            // Preserve the established 36/64 path/environment balance.
+            ) * 0.125;
+            float3 frostedBrightBloom = mix(
+                legacyBrightBloom,
+                mix(legacyBrightBloom, pathIntegratedBrightBloom, 0.36),
+                solidMode
+            );
             float3 glassBrightBloom = mix(
-                diagonalBrightBloom,
+                frostedBrightBloom,
                 pathIntegratedBrightBloom,
-                0.36
+                1.0 - solidMode
             );
             // Keep the green channel on the central refracted ray. Red and
             // blue take tiny opposite offsets along the same optical path,
