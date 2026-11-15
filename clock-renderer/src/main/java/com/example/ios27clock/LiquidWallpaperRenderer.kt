@@ -886,12 +886,26 @@ class LiquidWallpaperRenderer(
                 0.14, 0.52,
                 dot(blurH, float3(0.2126, 0.7152, 0.0722))
             );
-            float3 glassBrightBloom = (
-                blurA * brightA + blurB * brightB +
-                blurC * brightC + blurD * brightD +
+            float3 pathIntegratedBrightBloom =
+                blurA * brightA * pathWeightA +
+                blurB * brightB * pathWeightB +
+                blurC * brightC * pathWeightC +
+                blurD * brightD * pathWeightD;
+            float3 diagonalBrightBloom = (
                 blurE * brightE + blurF * brightF +
                 blurG * brightG + blurH * brightH
-            ) * 0.125;
+            ) * 0.25;
+            // Keep bloom's spatial/energy weighting consistent with the
+            // path-integrated in-scatter source above. The former equal
+            // eight-tap average over-weighted late path samples and ignored
+            // Beer-Lambert attenuation, so bloom could reintroduce bright
+            // bands that the transport integration had already softened.
+            // Preserve the established 36/64 path/environment balance.
+            float3 glassBrightBloom = mix(
+                diagonalBrightBloom,
+                pathIntegratedBrightBloom,
+                0.36
+            );
             // Keep the green channel on the central refracted ray. Red and
             // blue take tiny opposite offsets along the same optical path,
             // producing restrained chromatic dispersion rather than a broad
