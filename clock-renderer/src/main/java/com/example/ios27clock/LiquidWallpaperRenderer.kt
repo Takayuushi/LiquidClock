@@ -1524,13 +1524,13 @@ class LiquidWallpaperRenderer(
                 preScatterMicrofacetLuma,
                 microfacetDiffusion
             );
-            // Retain up to six additional percentage points of the original
+            // Retain up to sixteen additional percentage points of the original
             // refracted-source chroma where the two existing sources differ.
             // This applies equally to all hues and glyphs; no warm/blue/cyan
             // detector or fixed tint is introduced.
             float preScatterChromaDiffusion = clamp(
                 microfacetDiffusion -
-                    0.06 * preScatterChromaRetention,
+                    0.16 * preScatterChromaRetention,
                 0.0,
                 1.0
             );
