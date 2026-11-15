@@ -1544,14 +1544,25 @@ class LiquidWallpaperRenderer(
                 0.0,
                 0.165
             ) * glassFaceDarkness * (1.0 - solidMode);
+            // Rough-surface reflection should use the same anisotropic
+            // wallpaper footprint that already merges narrow bands in the
+            // transmitted glass. This is a prefiltered environment radiance,
+            // not an extra tint: it reuses the existing cross-band samples and
+            // lets nearby real wallpaper colour enter the broad reflected face.
+            // Keep the isotropic path-integrated environment as the other lobe.
+            float3 glassRoughReflectionEnvironment = mix(
+                frostedWallpaper,
+                microfacetTransmission,
+                0.65
+            );
             float3 glassInteriorReflectionSource = mix(
                 mix(
                     directionalEnvironmentReflection,
                     environmentReflection,
                     0.34
                 ),
-                frostedWallpaper,
-                0.25
+                glassRoughReflectionEnvironment,
+                0.35
             );
             // Transfer a restrained amount of the reflected environment's
             // actual chroma into the dark glass face. The positive-only energy
