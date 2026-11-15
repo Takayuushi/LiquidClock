@@ -1633,9 +1633,25 @@ class LiquidWallpaperRenderer(
             // and the colour can only come from the sampled wallpaper.
             float glassVolumeLumaIsotropicWeight =
                 glassVolumeIsotropicWeight;
+            // The broad lobe is attenuated again by Beer-Lambert scatter
+            // energy and atmospheric coverage after this source blend. Scale
+            // the source-level chroma retention by that downstream weight so
+            // its maximum final contribution is comparable to the earlier
+            // #136 2.5%-of-output chroma-only refinement, rather than being
+            // reduced to roughly 1.3% at the nominal 86px optical path.
+            // The 0.08 cap prevents thin paths from receiving an excessive
+            // source-level adjustment; luminance and energy remain unchanged.
+            float glassChromaOutputRetentionBudget = min(
+                0.08,
+                0.025 / max(
+                    glassInScatterEnergy * glassAtmosphericCoverage,
+                    0.3125
+                )
+            );
             float glassVolumeChromaIsotropicWeight = clamp(
                 glassVolumeIsotropicWeight -
-                    0.04 * chromaticRetention,
+                    glassChromaOutputRetentionBudget *
+                        chromaticRetention,
                 0.58,
                 0.76
             );
