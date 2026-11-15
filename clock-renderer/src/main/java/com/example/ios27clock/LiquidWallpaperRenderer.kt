@@ -1106,6 +1106,43 @@ class LiquidWallpaperRenderer(
                 0.0,
                 1.0
             );
+            // Add a low-energy, directionally reflected wallpaper image across
+            // the face. Unlike the view-ray sample near normal incidence, these
+            // existing key/fill environment samples come from distinct offsets,
+            // so they contribute a real spatial reflection pattern. A broad
+            // microfacet lobe follows the same surface normal used by the glints.
+            // Only positive reflected energy is returned, and dark-face gating
+            // protects saturated/bright transmitted regions from whitening.
+            float keyInteriorReflectionLobe = pow(
+                max(dot(glassSurfaceNormal, keyHalfVector), 0.0),
+                4.0
+            );
+            float fillInteriorReflectionLobe = pow(
+                max(dot(glassSurfaceNormal, fillHalfVector), 0.0),
+                4.0
+            );
+            float glassInteriorReflectionLobe = mix(
+                fillInteriorReflectionLobe,
+                keyInteriorReflectionLobe,
+                0.64
+            ) * glassHorizontalHighlight;
+            float glassInteriorReflectionWeight =
+                0.11 * glassInteriorReflectionLobe *
+                glassFaceDarkness * (1.0 - solidMode);
+            float3 glassInteriorReflectionSource = mix(
+                directionalEnvironmentReflection,
+                frostedWallpaper,
+                0.25
+            );
+            float3 glassInteriorReflectionEnergy =
+                max(glassInteriorReflectionSource - colour, float3(0.0)) *
+                glassInteriorReflectionWeight;
+            float3 glassInteriorReflectionHeadroom =
+                max(float3(1.0) - colour, float3(0.0)) * 0.14;
+            colour += min(
+                glassInteriorReflectionEnergy,
+                glassInteriorReflectionHeadroom
+            );
             colour -= float3(0.12, 0.15, 0.22) *
                 glassSideShadow * (1.0 - solidMode) * 0.22;
             colour *= mix(0.985, 1.025, glassLens);
