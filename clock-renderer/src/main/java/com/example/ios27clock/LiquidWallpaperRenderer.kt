@@ -87,6 +87,7 @@ class LiquidWallpaperRenderer(
 
         private val AGSL = """
         uniform shader uWallpaper;
+        uniform shader uReflectionEnvironment;
         uniform shader uGlyphMask;
         uniform shader uColonMask;
         uniform shader uGlyphSdf;
@@ -102,6 +103,21 @@ class LiquidWallpaperRenderer(
         uniform float uTime;
         uniform float3 uAccentColor;
         uniform float3 uClockTint;
+
+        // Map a 3D direction in the glass' local camera frame to the
+        // separate 2D reflection-proxy texture. X is right, Y is up, Z points
+        // toward the viewer. Longitude spans left/right; latitude spans top/
+        // bottom. This is an angular environment lookup, not a wallpaper-plane
+        // intersection. The portrait wallpaper supplies colour, not geometry.
+        float2 reflectionDirectionToUv(float3 direction) {
+            float3 d = normalize(direction);
+            float longitude = atan(d.x, d.z);
+            float latitude = asin(clamp(d.y, -1.0, 1.0));
+            return float2(
+                longitude * 0.15915494309 + 0.5,
+                0.5 - latitude * 0.31830988618
+            );
+        }
 
         half4 main(float2 p) {
             float coverage = uGlyphMask.eval(p).a;
@@ -724,81 +740,36 @@ class LiquidWallpaperRenderer(
                 (exp(-3.0 * pathTauQuarter) - glassDirectTransmittance) /
                 pathQuadratureDenominator;
 
-            // Reflect the view vector about the same height-map normal.
-            // This is a local image-based environment lookup, not an arbitrary
-            // mirrored clock-coordinate sample.
+            // The outgoing reflected rays live in the front/viewer
+            // hemisphere. The backing wallpaper is behind the glass and is
+            // therefore not a plane these rays can physically intersect.
+            // Sample a separately named angular reflection proxy instead.
             float3 incidentView = float3(0.0, 0.0, -1.0);
-            float3 reflectedView = incidentView -
-                2.0 * dot(incidentView, glassSurfaceNormal) *
-                    glassSurfaceNormal;
-            // Project reflected rays onto the 2D wallpaper plane. The old
-            // mapping used ray.xy * a fixed pixel distance and ignored ray.z,
-            // so shallow reflected rays sampled too close to the surface.
-            // Use the ray/plane intersection scale, bounded to 2x to avoid
-            // unstable long offsets, and fade rays that point behind the plane.
-            float viewReflectionHorizon = smoothstep(
-                -0.08,
-                0.28,
-                reflectedView.z
+            float3 reflectedView = normalize(
+                incidentView -
+                    2.0 * dot(incidentView, glassSurfaceNormal) *
+                        glassSurfaceNormal
             );
-            float viewReflectionProjection = min(
-                1.0 / max(reflectedView.z, 0.50),
-                2.0
-            );
-            float2 reflectionPoint = clamp(
-                p +
-                    reflectedView.xy *
-                        (30.0 * viewReflectionProjection * viewReflectionHorizon) +
-                    tilt * 2.0,
-                float2(0.0),
-                uResolution
-            );
-            float3 environmentReflection = uWallpaper.eval(reflectionPoint).rgb;
-            // Key/fill rays use the same perspective plane projection. Their
-            // existing radii and surface-normal directions are preserved; only
-            // the 2D intersection distance now accounts for the ray's depth.
-            float3 keyEnvironmentRay = reflect(
+            float2 reflectionUv = reflectionDirectionToUv(reflectedView);
+            float3 environmentReflection =
+                uReflectionEnvironment.eval(reflectionUv * uResolution).rgb;
+
+            float3 keyEnvironmentRay = normalize(reflect(
                 -keyLight3D,
                 glassSurfaceNormal
-            );
-            float3 fillEnvironmentRay = reflect(
+            ));
+            float3 fillEnvironmentRay = normalize(reflect(
                 -fillLight3D,
                 glassSurfaceNormal
-            );
-            float keyReflectionHorizon = smoothstep(
-                -0.08,
-                0.28,
-                keyEnvironmentRay.z
-            );
-            float fillReflectionHorizon = smoothstep(
-                -0.08,
-                0.28,
-                fillEnvironmentRay.z
-            );
-            float keyReflectionProjection = min(
-                1.0 / max(keyEnvironmentRay.z, 0.50),
-                2.0
-            );
-            float fillReflectionProjection = min(
-                1.0 / max(fillEnvironmentRay.z, 0.50),
-                2.0
-            );
-            float2 keyEnvironmentPoint = clamp(
-                p + keyEnvironmentRay.xy *
-                    (42.0 * keyReflectionProjection * keyReflectionHorizon),
-                float2(0.0),
-                uResolution
-            );
-            float2 fillEnvironmentPoint = clamp(
-                p + fillEnvironmentRay.xy *
-                    (34.0 * fillReflectionProjection * fillReflectionHorizon),
-                float2(0.0),
-                uResolution
-            );
+            ));
+            float2 keyReflectionUv =
+                reflectionDirectionToUv(keyEnvironmentRay);
+            float2 fillReflectionUv =
+                reflectionDirectionToUv(fillEnvironmentRay);
             float3 keyEnvironmentReflection =
-                uWallpaper.eval(keyEnvironmentPoint).rgb;
+                uReflectionEnvironment.eval(keyReflectionUv * uResolution).rgb;
             float3 fillEnvironmentReflection =
-                uWallpaper.eval(fillEnvironmentPoint).rgb;
+                uReflectionEnvironment.eval(fillReflectionUv * uResolution).rgb;
             float3 directionalEnvironmentReflection = mix(
                 fillEnvironmentReflection,
                 keyEnvironmentReflection,
@@ -3410,6 +3381,14 @@ class LiquidWallpaperRenderer(
             val shader = RuntimeShader(AGSL)
             shader.setInputShader(
                 "uWallpaper",
+                BitmapShader(
+                    background,
+                    Shader.TileMode.CLAMP,
+                    Shader.TileMode.CLAMP
+                )
+            )
+            shader.setInputShader(
+                "uReflectionEnvironment",
                 BitmapShader(
                     background,
                     Shader.TileMode.CLAMP,
