@@ -937,19 +937,59 @@ class LiquidWallpaperRenderer(
             float sampleTransmissionH = 1.0;
             if (solidMode < 0.5) {
                 float3 glassPathDirection = normalize(refractedRay);
-                float2 scatterAxis2 = float2(
+
+                // Build the angular basis in the local plane of incidence:
+                // project the rear-surface normal onto the plane perpendicular
+                // to the central internal ray. This steers the paired samples
+                // across the curved stroke section instead of along its tangent.
+                float3 planeOfIncidenceAxis =
+                    glassScatterRearNormal -
+                    dot(glassScatterRearNormal, glassPathDirection) *
+                        glassPathDirection;
+                float planeAxisLength = length(planeOfIncidenceAxis);
+                planeOfIncidenceAxis = planeOfIncidenceAxis /
+                    max(planeAxisLength, 0.0001);
+
+                // At near-normal incidence the plane of incidence is undefined.
+                // Retain a stable screen-space tangent fallback, projected
+                // perpendicular to the central ray so both basis vectors are
+                // valid directions in the same angular plane.
+                float2 tangentFallback2 = float2(
                     -glassPathDirection.y,
                     glassPathDirection.x
                 );
-                float scatterAxisLength = length(scatterAxis2);
-                scatterAxis2 = scatterAxisLength > 0.0001
-                    ? scatterAxis2 / scatterAxisLength
+                float tangentFallbackLength = length(tangentFallback2);
+                tangentFallback2 = tangentFallbackLength > 0.0001
+                    ? tangentFallback2 / tangentFallbackLength
                     : float2(1.0, 0.0);
-                float3 scatterAxis = float3(scatterAxis2, 0.0);
-                // A narrow 8-degree symmetric cone avoids a one-sided colour
-                // shift while providing distinct incident wallpaper rays.
-                const float SCATTER_ANGLE_COS = 0.9902680687;
-                const float SCATTER_ANGLE_SIN = 0.1391731010;
+                float3 tangentFallbackAxis = normalize(
+                    float3(tangentFallback2, 0.0) -
+                    dot(float3(tangentFallback2, 0.0), glassPathDirection) *
+                        glassPathDirection
+                );
+
+                // The pair is symmetric, so align the two basis signs before
+                // blending; this avoids an arbitrary 180-degree flip as the
+                // surface approaches normal incidence.
+                if (dot(planeOfIncidenceAxis, tangentFallbackAxis) < 0.0) {
+                    planeOfIncidenceAxis = -planeOfIncidenceAxis;
+                }
+                float planeAxisBlend = smoothstep(
+                    0.015,
+                    0.12,
+                    planeAxisLength
+                );
+                float3 scatterAxis = normalize(mix(
+                    tangentFallbackAxis,
+                    planeOfIncidenceAxis,
+                    planeAxisBlend
+                ));
+
+                // A wider 16-degree symmetric cone gives the four depth
+                // samples a meaningful cross-section footprint while the
+                // per-ray Snell/TIR checks bound the shoulder response.
+                const float SCATTER_ANGLE_COS = 0.9612616959;
+                const float SCATTER_ANGLE_SIN = 0.2756373558;
                 float3 scatterDirectionA = normalize(
                     glassPathDirection * SCATTER_ANGLE_COS +
                     scatterAxis * SCATTER_ANGLE_SIN
