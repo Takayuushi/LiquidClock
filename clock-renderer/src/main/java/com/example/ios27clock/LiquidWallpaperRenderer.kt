@@ -875,6 +875,11 @@ class LiquidWallpaperRenderer(
             // exit-plane proxy without increasing total energy or blur radius.
             // Share the same Beer-Lambert path response with broad
             // reflection roughness later in the shared Liquid Glass pass.
+            float glassPathScatterRoughness = smoothstep(
+                0.30,
+                0.58,
+                glassOpticalDepth
+            );
             float glassPathIntegrationShare = mix(
                 0.36,
                 0.44,
@@ -1389,11 +1394,6 @@ class LiquidWallpaperRenderer(
             // reflected environment; thin regions retain a clearer image.
             // This couples surface reflection to internal transport without
             // increasing reflection energy or adding another wallpaper tap.
-            float glassPathScatterRoughness = smoothstep(
-                0.30,
-                0.58,
-                glassOpticalDepth
-            );
             float glassSurfaceCurvatureRoughness = smoothstep(
                 0.08,
                 0.48,
