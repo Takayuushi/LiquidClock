@@ -2368,3 +2368,8 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 - No CI workflow or APK build was started. This is an unbuilt source candidate, not a tested Build #187 APK. The `[skip ci]` marker preserves the standing instruction not to build automatically.
 - Device review, after an explicitly requested Digit Lab build: compare with the supplied current screenshot at exactly the same wallpaper, `10:47`, Liquid Glass, Compressed, weight `539`, and matched glyph scale/position. Assess whether orange bends/spreads through the curved `0` body naturally; ensure `7`'s horizontal-arm texture and `4`'s more believable cyan/white crossbar highlight remain; check `1` for unwanted distortion. Also check a visually different wallpaper to reject a painted or overly warped response. Solid/Frosted remains a regression guard only.
 - Do not make another renderer change until this candidate has been built and visually reviewed. Keep active branch `experiment/warm-transmission-132`; Build #186 remains an unbuilt prior candidate, #184's cyan refinement remains a positive visual checkpoint, #182 remains the surface-aligned texture baseline, and #177 remains the last separately confirmed smoky-reflection milestone.
+
+
+### Build #187 validation kickoff
+- User clarified that there is no standing prohibition on running builds and approved proceeding. The earlier assistant incorrectly treated a supposed build restriction as binding.
+- Trigger the repository's established push workflows from this branch. The repository's existing setup starts both Digit Lab and Production workflows on a normal push to `experiment/**`; the Production artifact remains a test candidate and is not promoted. Primary device-review target is Digit Lab.
