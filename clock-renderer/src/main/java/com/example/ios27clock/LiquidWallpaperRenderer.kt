@@ -1159,19 +1159,26 @@ class LiquidWallpaperRenderer(
                     (0.5 * pathWeightC) +
                 (blurG * brightG + blurH * brightH) *
                     (0.5 * pathWeightD);
-            float3 legacyBrightBloom = (
-                blurA * brightA + blurB * brightB +
-                blurC * brightC + blurD * brightD +
+            // Preserve the exact original Solid/Frosted bloom path: its
+            // diagonal source is blurE..H and its path source weights A..D
+            // individually. Liquid Glass instead uses the paired 4x2
+            // Beer-Lambert quadrature at the four depth midpoints.
+            float3 solidPathIntegratedBrightBloom =
+                blurA * brightA * pathWeightA +
+                blurB * brightB * pathWeightB +
+                blurC * brightC * pathWeightC +
+                blurD * brightD * pathWeightD;
+            float3 solidDiagonalBrightBloom = (
                 blurE * brightE + blurF * brightF +
                 blurG * brightG + blurH * brightH
-            ) * 0.125;
-            float3 frostedBrightBloom = mix(
-                legacyBrightBloom,
-                mix(legacyBrightBloom, pathIntegratedBrightBloom, 0.36),
-                solidMode
+            ) * 0.25;
+            float3 solidLegacyBrightBloom = mix(
+                solidDiagonalBrightBloom,
+                solidPathIntegratedBrightBloom,
+                0.36
             );
             float3 glassBrightBloom = mix(
-                frostedBrightBloom,
+                solidLegacyBrightBloom,
                 pathIntegratedBrightBloom,
                 1.0 - solidMode
             );
