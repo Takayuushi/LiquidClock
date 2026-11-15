@@ -1453,10 +1453,19 @@ class LiquidWallpaperRenderer(
             );
             float glassFaceDarkness =
                 1.0 - smoothstep(0.18, 0.52, glassFaceLuma);
+            // Let optical thickness carry some reflected environment
+            // across the broad front face, not only around the curved rim.
+            // Curvature remains the primary driver; path scattering contributes
+            // a restrained 55% coverage floor in thick glass. This keeps the
+            // reflection tied to the same Beer-Lambert volume as transmission.
+            float glassFaceReflectionCoverage = max(
+                smoothstep(0.08, 0.48, glassProfileSlope),
+                glassPathScatterRoughness * 0.55
+            );
             float glassFaceReflectionAmount = mix(
                 0.035,
                 0.20,
-                smoothstep(0.08, 0.48, glassProfileSlope)
+                glassFaceReflectionCoverage
             ) * glassHorizontalHighlight;
             float glassChromaPickup = smoothstep(
                 0.025,
