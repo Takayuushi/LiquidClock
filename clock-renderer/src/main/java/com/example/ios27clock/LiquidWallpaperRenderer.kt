@@ -111,11 +111,29 @@ class LiquidWallpaperRenderer(
         // intersection. The portrait wallpaper supplies colour, not geometry.
         float2 reflectionDirectionToUv(float3 direction) {
             float3 d = normalize(direction);
-            float longitude = atan(d.x, d.z);
+
+            // Fold the full direction sphere onto a single horizontal
+            // hemisphere so the portrait proxy's complete width is useful.
+            // abs(z) makes the mapping continuous through the horizon instead
+            // of creating a wrap seam when reflected rays turn away from view.
+            float horizontalMagnitude = length(d.xz);
+            float longitude = atan(d.x, max(abs(d.z), 0.0001));
+            float longitudeCoverage = smoothstep(
+                0.025,
+                0.12,
+                horizontalMagnitude
+            );
+            float longitudeUv = longitude * 0.31830988618 + 0.5;
+            // Longitude is undefined at the poles; converge smoothly to the
+            // centre column there so tiny normal changes cannot jump the sample.
+            float u = mix(0.5, longitudeUv, longitudeCoverage);
+
             float latitude = asin(clamp(d.y, -1.0, 1.0));
-            return float2(
-                longitude * 0.15915494309 + 0.5,
-                0.5 - latitude * 0.31830988618
+            float v = 0.5 - latitude * 0.31830988618;
+            return clamp(
+                float2(u, v),
+                float2(0.0005),
+                float2(0.9995)
             );
         }
 
