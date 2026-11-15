@@ -731,17 +731,32 @@ class LiquidWallpaperRenderer(
             float3 reflectedView = incidentView -
                 2.0 * dot(incidentView, glassSurfaceNormal) *
                     glassSurfaceNormal;
+            // Project reflected rays onto the 2D wallpaper plane. The old
+            // mapping used ray.xy * a fixed pixel distance and ignored ray.z,
+            // so shallow reflected rays sampled too close to the surface.
+            // Use the ray/plane intersection scale, bounded to 2x to avoid
+            // unstable long offsets, and fade rays that point behind the plane.
+            float viewReflectionHorizon = smoothstep(
+                -0.08,
+                0.28,
+                reflectedView.z
+            );
+            float viewReflectionProjection = min(
+                1.0 / max(reflectedView.z, 0.50),
+                2.0
+            );
             float2 reflectionPoint = clamp(
-                p + reflectedView.xy * 30.0 + tilt * 2.0,
+                p +
+                    reflectedView.xy *
+                        (30.0 * viewReflectionProjection * viewReflectionHorizon) +
+                    tilt * 2.0,
                 float2(0.0),
                 uResolution
             );
             float3 environmentReflection = uWallpaper.eval(reflectionPoint).rgb;
-            // Aim the existing key/fill environment lookups along the
-            // locally reflected light rays. Unlike fixed screen offsets, these
-            // directions turn with the height-map normal, so broad faces and
-            // curved shoulders see different portions of the real wallpaper.
-            // Keep the established lookup radii and sample count unchanged.
+            // Key/fill rays use the same perspective plane projection. Their
+            // existing radii and surface-normal directions are preserved; only
+            // the 2D intersection distance now accounts for the ray's depth.
             float3 keyEnvironmentRay = reflect(
                 -keyLight3D,
                 glassSurfaceNormal
@@ -750,13 +765,33 @@ class LiquidWallpaperRenderer(
                 -fillLight3D,
                 glassSurfaceNormal
             );
+            float keyReflectionHorizon = smoothstep(
+                -0.08,
+                0.28,
+                keyEnvironmentRay.z
+            );
+            float fillReflectionHorizon = smoothstep(
+                -0.08,
+                0.28,
+                fillEnvironmentRay.z
+            );
+            float keyReflectionProjection = min(
+                1.0 / max(keyEnvironmentRay.z, 0.50),
+                2.0
+            );
+            float fillReflectionProjection = min(
+                1.0 / max(fillEnvironmentRay.z, 0.50),
+                2.0
+            );
             float2 keyEnvironmentPoint = clamp(
-                p + keyEnvironmentRay.xy * 42.0,
+                p + keyEnvironmentRay.xy *
+                    (42.0 * keyReflectionProjection * keyReflectionHorizon),
                 float2(0.0),
                 uResolution
             );
             float2 fillEnvironmentPoint = clamp(
-                p + fillEnvironmentRay.xy * 34.0,
+                p + fillEnvironmentRay.xy *
+                    (34.0 * fillReflectionProjection * fillReflectionHorizon),
                 float2(0.0),
                 uResolution
             );
