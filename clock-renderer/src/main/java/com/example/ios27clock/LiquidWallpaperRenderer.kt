@@ -1043,7 +1043,18 @@ class LiquidWallpaperRenderer(
             // Slightly widen only the across-band footprint where the wallpaper
             // tensor detects strong parallel streaks. This targets residual
             // dark-line separation without increasing the whole-volume haze.
-            float diffusionRadius = mix(24.0, 40.0, bandContrast);
+            // Let the same cross-band diffusion footprint grow with the
+            // actual Beer-Lambert path through the rounded glass volume.
+            // Thin shoulders keep the sharper refraction; thicker interior
+            // paths receive a modestly broader neighbourhood, creating a
+            // softer, more cohesive internal blend without a global blur.
+            float glassDiffusionDepth = smoothstep(
+                0.18,
+                0.52,
+                glassOpticalDepth
+            );
+            float diffusionRadius = mix(24.0, 40.0, bandContrast) *
+                mix(1.0, 1.16, glassDiffusionDepth);
             float2 nearDiffusionOffset = diffusionAxis * diffusionRadius * 0.62;
             float2 farDiffusionOffset = diffusionAxis * diffusionRadius * 1.38;
             float3 softNearA = uWallpaper.eval(clamp(
