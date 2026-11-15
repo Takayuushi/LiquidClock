@@ -737,13 +737,26 @@ class LiquidWallpaperRenderer(
                 uResolution
             );
             float3 environmentReflection = uWallpaper.eval(reflectionPoint).rgb;
+            // Aim the existing key/fill environment lookups along the
+            // locally reflected light rays. Unlike fixed screen offsets, these
+            // directions turn with the height-map normal, so broad faces and
+            // curved shoulders see different portions of the real wallpaper.
+            // Keep the established lookup radii and sample count unchanged.
+            float3 keyEnvironmentRay = reflect(
+                -keyLight3D,
+                glassSurfaceNormal
+            );
+            float3 fillEnvironmentRay = reflect(
+                -fillLight3D,
+                glassSurfaceNormal
+            );
             float2 keyEnvironmentPoint = clamp(
-                p - keyLight3D.xy * 42.0,
+                p + keyEnvironmentRay.xy * 42.0,
                 float2(0.0),
                 uResolution
             );
             float2 fillEnvironmentPoint = clamp(
-                p + fillLight3D.xy * 34.0,
+                p + fillEnvironmentRay.xy * 34.0,
                 float2(0.0),
                 uResolution
             );
