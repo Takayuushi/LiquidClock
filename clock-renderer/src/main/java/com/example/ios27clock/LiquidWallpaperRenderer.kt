@@ -518,7 +518,6 @@ class LiquidWallpaperRenderer(
                     float2(0.0),
                     uResolution
                 );
-                glassInternalPathEnd = rearPoint;
                 float2 rearSdfPoint =
                     sdfPoint + (rearPoint - p) * uSdfScale;
                 float sdfRear = uGlyphSdf.eval(rearSdfPoint).a;
@@ -652,6 +651,20 @@ class LiquidWallpaperRenderer(
                     rearSurfaceCoverage *
                     rearSnellGate *
                     rearInterfaceTransmission;
+                // Use the rear intersection for internal path integration
+                // only to the extent that the SDF hit and glass-to-air exit
+                // are valid. Otherwise retain the nominal front-to-rear ray.
+                // This keeps the quadrature endpoint consistent with the
+                // same validity blend already used for optical path length.
+                glassInternalPathEnd = clamp(
+                    mix(
+                        glassInternalPathEnd,
+                        rearPoint,
+                        rearPathValidity
+                    ),
+                    float2(0.0),
+                    uResolution
+                );
                 glassPathLength = mix(
                     glassPathLength,
                     rearTravel * length(refractedRay),
