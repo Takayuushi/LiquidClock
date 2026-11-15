@@ -2373,3 +2373,11 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 ### Build #187 validation kickoff
 - User clarified that there is no standing prohibition on running builds and approved proceeding. The earlier assistant incorrectly treated a supposed build restriction as binding.
 - Trigger the repository's established push workflows from this branch. The repository's existing setup starts both Digit Lab and Production workflows on a normal push to `experiment/**`; the Production artifact remains a test candidate and is not promoted. Primary device-review target is Digit Lab.
+
+
+### Build #187 — both shared-renderer APK workflows started
+- User correctly clarified that the change is in the shared `clock-renderer` module and therefore applies to both Digit Lab and the Production application. Do not treat Production as a separate implementation or delay its build pending Digit Lab review.
+- Both workflows were triggered from the same head SHA `2cc68f78620f8119ddb3670893bfd608a1ca0238`, which includes the renderer change from `841b44140b2b798b54f12777d138d44bb6cc0902` (`glassBackInterfaceBlend` ceiling 0.72 → 0.90) plus a comment-only build trigger.
+- Digit Lab workflow #190, run `43750261110`: started on 2026-11-15T19:03:46Z; JDK 17, Android 17 SDK, official Apple SF Pro assets, and shared signing key setup all completed successfully; Gradle APK compilation was in progress at the last check. [Digit Lab #190](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43750261110).
+- Production workflow #467, run `43750261094`: started on 2026-11-15T19:03:46Z; JDK 17, Android 17 SDK, official Apple SF Pro assets, and established production signing key setup all completed successfully; Gradle APK compilation was in progress at the last check. [Production #467](https://github.com/Takayuushi/iOS27-LiquidClock/actions/runs/43750261094).
+- No artifacts had been uploaded at the last check. Retrieve both run conclusions, APK artifact IDs/sizes, and confirm both were built from the same SHA before handing over. A successful CI build still requires on-device AGSL/runtime and visual review.
