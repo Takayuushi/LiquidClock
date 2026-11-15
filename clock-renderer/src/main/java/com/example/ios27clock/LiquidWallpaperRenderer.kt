@@ -1473,8 +1473,8 @@ class LiquidWallpaperRenderer(
             );
             float3 warmLightTransportLinear =
                 microfacetTransmissionLinear *
-                    (1.0 + warmLightPresence * 0.60) +
-                float3(0.050, 0.020, 0.0) * warmLightPresence;
+                    (1.0 + warmLightPresence * 1.10) +
+                float3(0.095, 0.038, 0.0) * warmLightPresence;
             float3 warmLightTransportSrgbHigh = float3(
                 1.055 * pow(max(warmLightTransportLinear.r, 0.0), 0.4166667) - 0.055,
                 1.055 * pow(max(warmLightTransportLinear.g, 0.0), 0.4166667) - 0.055,
@@ -1632,14 +1632,14 @@ class LiquidWallpaperRenderer(
             // they boosted local colour without placing a physically correct
             // opposite-side image and were mostly erased by broad scattering.
             float3 volumeScatteredTransmission = clamp(
-                warmRetainedTransmission * 1.25 +
-                    float3(0.045, 0.050, 0.055),
+                warmRetainedTransmission * 1.35 +
+                    float3(0.065, 0.070, 0.075),
                 0.0,
                 1.0
             );
             float glassAtmosphericCoverage = smoothstep(
-                0.01,
-                0.40,
+                0.00,
+                0.30,
                 glassVolumeRegion
             );
             // The convex profile and traced rear interface define a shared
@@ -1693,11 +1693,11 @@ class LiquidWallpaperRenderer(
             // image by mixing nearby radiance through the same glass volume,
             // without a screen-space blur or a colour-specific correction.
             float glassVolumeIsotropicWeight = clamp(
-                mix(0.75, 0.85, bandContrast) -
+                mix(0.85, 0.94, bandContrast) -
                     0.04 * chromaticRetention -
                     glassCurvatureDirectionalRetention,
-                0.68,
-                0.85
+                0.78,
+                0.94
             );
             // Keep the established broad luminance diffusion exactly as-is,
             // but let more directional environmental chroma survive when the
