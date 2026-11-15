@@ -1626,10 +1626,34 @@ class LiquidWallpaperRenderer(
                 0.62,
                 0.76
             );
-            float3 glassBroadInScatter = mix(
-                volumeScatteredTransmission,
-                frostedWallpaper,
-                glassVolumeIsotropicWeight
+            // Keep the established broad luminance diffusion exactly as-is,
+            // but let more directional environmental chroma survive when the
+            // two existing sources carry meaningfully different colours.
+            // This is hue-agnostic: every channel uses the same chroma weight,
+            // and the colour can only come from the sampled wallpaper.
+            float glassVolumeLumaIsotropicWeight =
+                glassVolumeIsotropicWeight;
+            float glassVolumeChromaIsotropicWeight = clamp(
+                glassVolumeIsotropicWeight -
+                    0.04 * chromaticRetention,
+                0.58,
+                0.76
+            );
+            float glassBroadInScatterLuma = mix(
+                volumeTransmissionLuma,
+                frostedWallpaperLuma,
+                glassVolumeLumaIsotropicWeight
+            );
+            float3 glassBroadInScatterChroma = mix(
+                volumeTransmissionChroma,
+                frostedWallpaperChroma,
+                glassVolumeChromaIsotropicWeight
+            );
+            float3 glassBroadInScatter = clamp(
+                float3(glassBroadInScatterLuma) +
+                    glassBroadInScatterChroma,
+                0.0,
+                1.0
             );
 
             // Two-lobe transport: attenuated direct refracted radiance plus
