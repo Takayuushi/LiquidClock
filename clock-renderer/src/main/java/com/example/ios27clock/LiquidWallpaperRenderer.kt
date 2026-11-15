@@ -1126,10 +1126,21 @@ class LiquidWallpaperRenderer(
                 0.16,
                 chromaticSeparation
             );
-            float glassVolumeIsotropicWeight = mix(
-                0.62,
-                0.58,
-                chromaticRetention
+            // Preserve a little more directional wallpaper chroma where
+            // the curved rear path is valid and the shared surface normal is
+            // strongly horizontal-facing. This helps coloured energy travel
+            // through those curved shoulders instead of being averaged into
+            // the broad environment. Luminance is deliberately unaffected.
+            // The response is bounded and shared by every glyph.
+            float glassCurvedShoulderColourTransport =
+                glassBackInterfaceBlend * horizontalShoulder;
+            float glassCurvatureDirectionalRetention =
+                0.035 * glassCurvedShoulderColourTransport;
+            float glassVolumeIsotropicWeight = clamp(
+                mix(0.62, 0.58, chromaticRetention) -
+                    glassCurvatureDirectionalRetention,
+                0.55,
+                0.62
             );
             // Let strong, narrow wallpaper bands scatter a little more
             // of their luminance into the broad glass environment. Keep the
