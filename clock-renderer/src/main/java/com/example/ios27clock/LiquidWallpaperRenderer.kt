@@ -832,6 +832,7 @@ class LiquidWallpaperRenderer(
                 // the shared transmitted sample. Keep all rear-coverage,
                 // curvature, Snell and Fresnel gates unchanged so invalid or
                 // near-flat regions continue using the established front path.
+                // Build #187 validates the stronger shared curved-exit contribution.
                 glassBackInterfaceBlend = 0.90 *
                     rearSurfaceCoverage *
                     curvedShoulderCoverage *
