@@ -1523,9 +1523,45 @@ class LiquidWallpaperRenderer(
                 0.165
             ) * glassFaceDarkness * (1.0 - solidMode);
             float3 glassInteriorReflectionSource = mix(
-                directionalEnvironmentReflection,
+                mix(
+                    directionalEnvironmentReflection,
+                    environmentReflection,
+                    0.34
+                ),
                 frostedWallpaper,
                 0.25
+            );
+            // Transfer a restrained amount of the reflected environment's
+            // actual chroma into the dark glass face. The positive-only energy
+            // term above can brighten a channel but cannot properly steer hue
+            // when the face already contains a stronger competing channel.
+            // This chroma-only transfer preserves luminance and uses no fixed
+            // tint: blue, cyan, orange or gold can enter only when present in
+            // the reflected wallpaper samples.
+            float glassReflectionSourceLuma = dot(
+                glassInteriorReflectionSource,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float glassReflectionFaceLuma = dot(
+                colour,
+                float3(0.2126, 0.7152, 0.0722)
+            );
+            float3 glassReflectionSourceChroma =
+                glassInteriorReflectionSource -
+                float3(glassReflectionSourceLuma);
+            float3 glassReflectionFaceChroma =
+                colour - float3(glassReflectionFaceLuma);
+            float3 glassReflectedChromaTransfer =
+                (glassReflectionSourceChroma - glassReflectionFaceChroma) *
+                glassInteriorReflectionWeight * 0.42;
+            float3 glassChromaPositiveHeadroom =
+                max(float3(1.0) - colour, float3(0.0)) * 0.12;
+            float3 glassChromaNegativeHeadroom =
+                max(colour, float3(0.0)) * 0.12;
+            glassReflectedChromaTransfer = clamp(
+                glassReflectedChromaTransfer,
+                -glassChromaNegativeHeadroom,
+                glassChromaPositiveHeadroom
             );
             float3 glassInteriorReflectionEnergy =
                 max(glassInteriorReflectionSource - colour, float3(0.0)) *
@@ -1536,6 +1572,7 @@ class LiquidWallpaperRenderer(
                 glassInteriorReflectionEnergy,
                 glassInteriorReflectionHeadroom
             );
+            colour += glassReflectedChromaTransfer;
             colour -= float3(0.12, 0.15, 0.22) *
                 glassSideShadow * (1.0 - solidMode) * 0.22;
             colour *= mix(0.985, 1.025, glassLens);
