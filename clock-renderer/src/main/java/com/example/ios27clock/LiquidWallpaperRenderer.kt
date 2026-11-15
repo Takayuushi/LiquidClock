@@ -960,14 +960,14 @@ class LiquidWallpaperRenderer(
                 );
 
                 float3 frontPathPosition = float3(p, glassHeight);
+                float3 rearTangentPoint = float3(
+                    glassScatterRearPlanePoint,
+                    -GLASS_THICKNESS_PX - glassScatterRearHeight
+                );
                 float3 rearPathPosition = mix(
                     frontPathPosition,
                     rearTangentPoint,
                     glassScatterRearValidity
-                );
-                float3 rearTangentPoint = float3(
-                    glassScatterRearPlanePoint,
-                    -GLASS_THICKNESS_PX - glassScatterRearHeight
                 );
                 float2 frontCorrection =
                     glassRefractionOffset - baseGlassRefractionOffset +
