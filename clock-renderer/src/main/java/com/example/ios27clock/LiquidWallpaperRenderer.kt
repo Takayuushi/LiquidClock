@@ -801,7 +801,11 @@ class LiquidWallpaperRenderer(
                     rearSurfaceCoverage *
                     rearSnellGate *
                     rearInterfaceTransmission;
-                glassScatterRearValidity = rearPathValidity;
+                // Keep geometry validity separate from the central ray's
+                // Fresnel throughput; each off-axis ray computes its own
+                // rear-interface transmission in scatterRayToWallpaper().
+                glassScatterRearValidity =
+                    rearSurfaceCoverage * rearSnellGate;
                 // Use the rear intersection for internal path integration
                 // only to the extent that the SDF hit and glass-to-air exit
                 // are valid. Otherwise retain the nominal front-to-rear ray.
@@ -956,13 +960,10 @@ class LiquidWallpaperRenderer(
                 );
 
                 float3 frontPathPosition = float3(p, glassHeight);
-                float3 rearPathPosition = float3(
-                    glassInternalPathEnd,
-                    mix(
-                        -GLASS_THICKNESS_PX - glassHeight,
-                        -GLASS_THICKNESS_PX - glassScatterRearHeight,
-                        glassScatterRearValidity
-                    )
+                float3 rearPathPosition = mix(
+                    frontPathPosition,
+                    rearTangentPoint,
+                    glassScatterRearValidity
                 );
                 float3 rearTangentPoint = float3(
                     glassScatterRearPlanePoint,
