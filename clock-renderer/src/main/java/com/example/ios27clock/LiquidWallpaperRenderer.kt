@@ -1623,47 +1623,46 @@ class LiquidWallpaperRenderer(
                 environmentReflection,
                 0.34
             );
-            // Blend sources according to their actual local lobe weights,
-            // rather than a fixed 35% broad-source fraction. This preserves
-            // the total reflection weight while allowing the broad reflection
-            // to follow optical path depth and surface orientation.
-            float glassBroadReflectionSourceShare =
-                glassBroadReflectionWeight /
-                max(glassInteriorReflectionWeight, 0.0001);
-            float3 glassInteriorReflectionSource = mix(
+            // Preserve each lobe's radiance until after its nonlinear
+            // positive-energy response. Averaging the two RGB sources first
+            // can cancel a useful channel when one source is bright and the
+            // other is dark, even though each lobe carries valid reflected
+            // environment energy. Chroma remains a shared, linear transfer
+            // before its one existing combined headroom clamp.
+            float glassNarrowReflectionSourceLuma = dot(
                 glassNarrowReflectionSource,
-                glassRoughReflectionEnvironment,
-                glassBroadReflectionSourceShare
+                float3(0.2126, 0.7152, 0.0722)
             );
-            // Transfer a restrained amount of the reflected environment's
-            // actual chroma into the dark glass face. The positive-only energy
-            // term above can brighten a channel but cannot properly steer hue
-            // when the face already contains a stronger competing channel.
-            // This chroma-only transfer preserves luminance and uses no fixed
-            // tint: blue, cyan, orange or gold can enter only when present in
-            // the reflected wallpaper samples.
-            float glassReflectionSourceLuma = dot(
-                glassInteriorReflectionSource,
+            float glassBroadReflectionSourceLuma = dot(
+                glassRoughReflectionEnvironment,
                 float3(0.2126, 0.7152, 0.0722)
             );
             float glassReflectionFaceLuma = dot(
                 colour,
                 float3(0.2126, 0.7152, 0.0722)
             );
-            float3 glassReflectionSourceChroma =
-                glassInteriorReflectionSource -
-                float3(glassReflectionSourceLuma);
+            float3 glassNarrowReflectionSourceChroma =
+                glassNarrowReflectionSource -
+                float3(glassNarrowReflectionSourceLuma);
+            float3 glassBroadReflectionSourceChroma =
+                glassRoughReflectionEnvironment -
+                float3(glassBroadReflectionSourceLuma);
             float3 glassReflectionFaceChroma =
                 colour - float3(glassReflectionFaceLuma);
-            // Let the actual reflected environment contribute more of its
-            // chroma to the dark glass body. This is hue-neutral: every channel
-            // is transferred by the same factor, and only colours present in
-            // the reflected wallpaper can enter the material. Dark faces receive
-            // more of this pickup through the existing optical weighting, while
-            // bright faces retain their transmitted highlights.
+            // Chroma transfer is linear in the source, so retain the exact
+            // original combined transfer by summing the separately weighted
+            // narrow and broad contributions before applying one shared clamp.
+            float3 glassNarrowReflectedChromaTransfer =
+                (glassNarrowReflectionSourceChroma -
+                    glassReflectionFaceChroma) *
+                glassNarrowReflectionWeight * 0.58;
+            float3 glassBroadReflectedChromaTransfer =
+                (glassBroadReflectionSourceChroma -
+                    glassReflectionFaceChroma) *
+                glassBroadReflectionWeight * 0.58;
             float3 glassReflectedChromaTransfer =
-                (glassReflectionSourceChroma - glassReflectionFaceChroma) *
-                glassInteriorReflectionWeight * 0.58;
+                glassNarrowReflectedChromaTransfer +
+                glassBroadReflectedChromaTransfer;
             float3 glassChromaPositiveHeadroom =
                 max(float3(1.0) - colour, float3(0.0)) * 0.16;
             float3 glassChromaNegativeHeadroom =
@@ -1673,9 +1672,22 @@ class LiquidWallpaperRenderer(
                 -glassChromaNegativeHeadroom,
                 glassChromaPositiveHeadroom
             );
+            // Positive reflected radiance is nonlinear: evaluate each
+            // environment lobe against the unmodified face independently, then
+            // sum the contributions under the original shared 14% headroom.
+            float3 glassNarrowReflectionEnergy =
+                max(
+                    glassNarrowReflectionSource - colour,
+                    float3(0.0)
+                ) * glassNarrowReflectionWeight;
+            float3 glassBroadReflectionEnergy =
+                max(
+                    glassRoughReflectionEnvironment - colour,
+                    float3(0.0)
+                ) * glassBroadReflectionWeight;
             float3 glassInteriorReflectionEnergy =
-                max(glassInteriorReflectionSource - colour, float3(0.0)) *
-                glassInteriorReflectionWeight;
+                glassNarrowReflectionEnergy +
+                glassBroadReflectionEnergy;
             float3 glassInteriorReflectionHeadroom =
                 max(float3(1.0) - colour, float3(0.0)) * 0.14;
             colour += min(
