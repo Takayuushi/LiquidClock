@@ -452,6 +452,11 @@ class LiquidWallpaperRenderer(
             // their local height; Snell's ray angle converts z thickness to
             // travel distance. A valid traced rear hit below supersedes this
             // symmetric-profile estimate.
+            float glassNominalTravel =
+                (GLASS_THICKNESS_PX + 2.0 * glassHeight) /
+                max(-refractedRay.z, 0.15);
+            float2 glassInternalPathEnd =
+                p + refractedRay.xy * glassNominalTravel;
             float glassPathLength =
                 (GLASS_THICKNESS_PX + 2.0 * glassHeight) *
                 length(refractedRay) /
@@ -513,6 +518,7 @@ class LiquidWallpaperRenderer(
                     float2(0.0),
                     uResolution
                 );
+                glassInternalPathEnd = rearPoint;
                 float2 rearSdfPoint =
                     sdfPoint + (rearPoint - p) * uSdfScale;
                 float sdfRear = uGlyphSdf.eval(rearSdfPoint).a;
@@ -675,6 +681,35 @@ class LiquidWallpaperRenderer(
             );
 
             float3 center = uWallpaper.eval(samplePoint).rgb;
+            // Use the same solved optical path for both attenuation and a
+            // four-bin Beer-Lambert quadrature of the environment radiance.
+            // The four path taps below replace four of the former eight blur
+            // taps, keeping the wallpaper sample budget unchanged.
+            const float GLASS_EXTINCTION_PER_PX = 0.0056;
+            const float GLASS_SCATTERING_ALBEDO = 0.88;
+            float glassOpticalDepth =
+                GLASS_EXTINCTION_PER_PX * glassPathLength;
+            float glassDirectTransmittance = exp(-glassOpticalDepth);
+            float glassInScatterEnergy =
+                (1.0 - glassDirectTransmittance) *
+                GLASS_SCATTERING_ALBEDO;
+            float pathQuadratureDenominator = max(
+                1.0 - glassDirectTransmittance,
+                0.0001
+            );
+            float pathTauQuarter = glassOpticalDepth * 0.25;
+            float pathWeightA =
+                (1.0 - exp(-pathTauQuarter)) /
+                pathQuadratureDenominator;
+            float pathWeightB =
+                (exp(-pathTauQuarter) - exp(-2.0 * pathTauQuarter)) /
+                pathQuadratureDenominator;
+            float pathWeightC =
+                (exp(-2.0 * pathTauQuarter) - exp(-3.0 * pathTauQuarter)) /
+                pathQuadratureDenominator;
+            float pathWeightD =
+                (exp(-3.0 * pathTauQuarter) - glassDirectTransmittance) /
+                pathQuadratureDenominator;
 
             // Reflect the view vector about the same height-map normal.
             // This is a local image-based environment lookup, not an arbitrary
@@ -709,29 +744,36 @@ class LiquidWallpaperRenderer(
                 0.64
             );
 
-            // Reuse the eight-direction blur below for both materials:
-            // Glass gets a tighter optical diffusion, while Solid retains its
-            // wider frosted response. This avoids a separate anisotropic blur.
-            // Preserve wallpaper detail through Liquid Glass; only Frosted Glass gets wide diffusion.
+            // Four Beer-Lambert quadrature samples follow the projected
+            // front-to-rear ray through the curved glass. Four diagonal
+            // environment samples retain a local broad-light reference.
+            // This reassigns the existing eight wallpaper taps; it adds no
+            // texture evaluations and remains shared by every glyph.
             float blurRadius = mix(44.0, 38.0, solidMode);
-            float2 blurX = float2(blurRadius, 0.0);
-            float2 blurY = float2(0.0, blurRadius);
             float2 blurDiagonal = float2(
                 blurRadius * 0.7071,
                 blurRadius * 0.7071
             );
-            float3 blurA = uWallpaper.eval(
-                clamp(samplePoint + blurX, float2(0.0), uResolution)
-            ).rgb;
-            float3 blurB = uWallpaper.eval(
-                clamp(samplePoint - blurX, float2(0.0), uResolution)
-            ).rgb;
-            float3 blurC = uWallpaper.eval(
-                clamp(samplePoint + blurY, float2(0.0), uResolution)
-            ).rgb;
-            float3 blurD = uWallpaper.eval(
-                clamp(samplePoint - blurY, float2(0.0), uResolution)
-            ).rgb;
+            float3 blurA = uWallpaper.eval(clamp(
+                mix(p, glassInternalPathEnd, 0.125),
+                float2(0.0),
+                uResolution
+            )).rgb;
+            float3 blurB = uWallpaper.eval(clamp(
+                mix(p, glassInternalPathEnd, 0.375),
+                float2(0.0),
+                uResolution
+            )).rgb;
+            float3 blurC = uWallpaper.eval(clamp(
+                mix(p, glassInternalPathEnd, 0.625),
+                float2(0.0),
+                uResolution
+            )).rgb;
+            float3 blurD = uWallpaper.eval(clamp(
+                mix(p, glassInternalPathEnd, 0.875),
+                float2(0.0),
+                uResolution
+            )).rgb;
             float3 blurE = uWallpaper.eval(
                 clamp(samplePoint + blurDiagonal, float2(0.0), uResolution)
             ).rgb;
@@ -752,10 +794,22 @@ class LiquidWallpaperRenderer(
                     uResolution
                 )
             ).rgb;
-            float3 frostedWallpaper = (
-                blurA + blurB + blurC + blurD +
+            float3 pathIntegratedLight =
+                blurA * pathWeightA +
+                blurB * pathWeightB +
+                blurC * pathWeightC +
+                blurD * pathWeightD;
+            float3 diagonalEnvironment = (
                 blurE + blurF + blurG + blurH
-            ) * 0.125;
+            ) * 0.25;
+            // Keep path integration restrained: it contributes 36% of the
+            // broad environment source, while the local exit-plane environment
+            // retains 64%. The direct refracted lobe remains untouched.
+            float3 frostedWallpaper = mix(
+                diagonalEnvironment,
+                pathIntegratedLight,
+                0.36
+            );
             // Extract bright energy before averaging so bright wallpaper bands
             // create a soft, low-frequency glow through the glass instead of
             // remaining only as sharp refracted lines.
@@ -1108,15 +1162,6 @@ class LiquidWallpaperRenderer(
             // retains approximately the same normal-incidence attenuation
             // as the prior 46px nominal-path model. Thinner shoulders therefore
             // scatter less; longer oblique/rear-traced paths scatter more.
-            const float GLASS_EXTINCTION_PER_PX = 0.0056;
-            const float GLASS_SCATTERING_ALBEDO = 0.88;
-            float glassOpticalDepth =
-                GLASS_EXTINCTION_PER_PX * glassPathLength;
-            float glassDirectTransmittance = exp(-glassOpticalDepth);
-            float glassInScatterEnergy =
-                (1.0 - glassDirectTransmittance) *
-                GLASS_SCATTERING_ALBEDO;
-
             // Keep the existing image-adaptive chroma and band response, but
             // combine the directional transmission and broad environment into
             // one RGB in-scatter source. The broad lobe retains the local
