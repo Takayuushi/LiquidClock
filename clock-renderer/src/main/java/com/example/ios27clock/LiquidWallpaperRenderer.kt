@@ -1494,9 +1494,34 @@ class LiquidWallpaperRenderer(
                 keyInteriorReflectionLobe,
                 0.64
             ) * glassHorizontalHighlight;
-            float glassInteriorReflectionWeight =
-                0.11 * glassInteriorReflectionLobe *
-                glassFaceDarkness * (1.0 - solidMode);
+            // Add a second, broader microfacet lobe across front-facing glass.
+            // The existing exponent-4 lobe preserves the more directional
+            // reflection; this exponent-2 lobe fills in the broad face response
+            // using the same measured key/fill environment and surface normal.
+            // Couple its strength to Beer-Lambert path depth so it belongs to
+            // the same optical volume, not a flat screen-space colour wash.
+            float keyBroadFaceReflectionLobe = pow(
+                max(dot(glassSurfaceNormal, keyHalfVector), 0.0),
+                2.0
+            );
+            float fillBroadFaceReflectionLobe = pow(
+                max(dot(glassSurfaceNormal, fillHalfVector), 0.0),
+                2.0
+            );
+            float glassBroadFaceReflectionLobe = mix(
+                fillBroadFaceReflectionLobe,
+                keyBroadFaceReflectionLobe,
+                0.64
+            ) * glassHorizontalHighlight;
+            float glassPathCoupledReflectionWeight =
+                0.055 * glassBroadFaceReflectionLobe *
+                glassPathScatterRoughness;
+            float glassInteriorReflectionWeight = clamp(
+                0.11 * glassInteriorReflectionLobe +
+                    glassPathCoupledReflectionWeight,
+                0.0,
+                0.165
+            ) * glassFaceDarkness * (1.0 - solidMode);
             float3 glassInteriorReflectionSource = mix(
                 directionalEnvironmentReflection,
                 frostedWallpaper,
