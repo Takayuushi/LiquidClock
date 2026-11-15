@@ -469,9 +469,36 @@ class LiquidWallpaperRenderer(
                         rearFirstDistance * rearFirstDistance,
                     0.0
                 ));
+                // Refine the rear intersection twice after the initial
+                // estimate. The cap height changes with the sampled SDF, so a
+                // single update can leave a visible positional residual on
+                // steeply curved strokes and turn diagonal wallpaper bands
+                // into discontinuous dark stripes.
                 rearTravel = (
                     GLASS_THICKNESS_PX + glassHeight + rearFirstHeight
                 ) / max(-refractedRay.z, 0.15);
+                rearPoint = clamp(
+                    p + refractedRay.xy * rearTravel,
+                    float2(0.0),
+                    uResolution
+                );
+                float sdfRearSecond = uGlyphSdf.eval(
+                    sdfPoint + (rearPoint - p) * uSdfScale
+                ).a;
+                float rearSecondDistance = clamp(
+                    max((sdfRearSecond - 0.5) * 2.0 * uSdfRange, 0.0),
+                    0.0,
+                    glassProfileRadius
+                );
+                float rearSecondHeight = sqrt(max(
+                    2.0 * glassProfileRadius * rearSecondDistance -
+                        rearSecondDistance * rearSecondDistance,
+                    0.0
+                ));
+                float refinedRearTravel = (
+                    GLASS_THICKNESS_PX + glassHeight + rearSecondHeight
+                ) / max(-refractedRay.z, 0.15);
+                rearTravel = mix(rearTravel, refinedRearTravel, 0.72);
                 rearPoint = clamp(
                     p + refractedRay.xy * rearTravel,
                     float2(0.0),
@@ -597,7 +624,7 @@ class LiquidWallpaperRenderer(
                 float2 frontJacobianCorrection =
                     glassRefractionOffset - baseGlassRefractionOffset;
                 float2 curvedTwoInterfaceOffset =
-                    (rearPoint - p) * glassEdgePull +
+                    (rearPoint - p) +
                     frontJacobianCorrection +
                     glassBackExitRay.xy * backExitTravel;
 
