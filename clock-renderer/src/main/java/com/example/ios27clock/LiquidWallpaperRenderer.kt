@@ -447,6 +447,15 @@ class LiquidWallpaperRenderer(
             // This is a two-interface curved-lens approximation, shared by
             // every glyph; Solid/Frosted skips the entire extra geometry path.
             float glassBackInterfaceBlend = 0.0;
+            // Estimate the actual local front-to-back distance through the
+            // rounded glass section. The front and rear caps each contribute
+            // their local height; Snell's ray angle converts z thickness to
+            // travel distance. A valid traced rear hit below supersedes this
+            // symmetric-profile estimate.
+            float glassPathLength =
+                (GLASS_THICKNESS_PX + 2.0 * glassHeight) *
+                length(refractedRay) /
+                max(-refractedRay.z, 0.15);
             if (solidMode < 0.5) {
                 float rearTravel = (
                     GLASS_THICKNESS_PX + 2.0 * glassHeight
@@ -632,6 +641,15 @@ class LiquidWallpaperRenderer(
                     0.50,
                     0.60,
                     sdfRear
+                );
+                float rearPathValidity =
+                    rearSurfaceCoverage *
+                    rearSnellGate *
+                    rearInterfaceTransmission;
+                glassPathLength = mix(
+                    glassPathLength,
+                    rearTravel * length(refractedRay),
+                    rearPathValidity
                 );
                 float curvedShoulderCoverage =
                     smoothstep(0.025, 0.16, glassProfileSlope) *
@@ -1086,15 +1104,11 @@ class LiquidWallpaperRenderer(
             // split the transmitted radiance into a direct lobe and a broad
             // in-scattered lobe. The removed direct energy is not independently
             // averaged into both luma and chroma and then mixed a second time.
-            float glassCurvedPathWeight =
-                smoothstep(0.08, 0.48, glassProfileSlope) *
-                glassProfileCoverage;
-            float glassOpticalPath =
-                mix(0.90, 1.0, smoothstep(1.0, 22.0, insideDistance)) +
-                0.18 * glassCurvedPathWeight;
-            float glassPathLength =
-                GLASS_THICKNESS_PX * glassOpticalPath;
-            const float GLASS_EXTINCTION_PER_PX = 0.0105;
+            // Extinction is calibrated so the full 86px centre thickness
+            // retains approximately the same normal-incidence attenuation
+            // as the prior 46px nominal-path model. Thinner shoulders therefore
+            // scatter less; longer oblique/rear-traced paths scatter more.
+            const float GLASS_EXTINCTION_PER_PX = 0.0056;
             const float GLASS_SCATTERING_ALBEDO = 0.88;
             float glassOpticalDepth =
                 GLASS_EXTINCTION_PER_PX * glassPathLength;
