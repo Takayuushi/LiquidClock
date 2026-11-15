@@ -911,20 +911,26 @@ class LiquidWallpaperRenderer(
                 0.64
             );
 
-            // Reuse the existing eight wallpaper evaluations as a
-            // four-depth by two-direction single-scattering quadrature.
-            // Each pair is symmetric around the central internal ray; its
-            // rays intersect the shared rear tangent plane, refract through
-            // glass-to-air Snell, then sample the backing wallpaper plane.
-            // Solid/Frosted retains its exact original eight sample positions.
-            float3 blurA;
-            float3 blurB;
-            float3 blurC;
-            float3 blurD;
-            float3 blurE;
-            float3 blurF;
-            float3 blurG;
-            float3 blurH;
+            // Select coordinates/throughput for the existing eight sample
+            // slots. Liquid Glass uses a four-depth by two-direction
+            // single-scattering quadrature; Solid/Frosted keeps the exact
+            // original eight coordinates and unit sample weights.
+            float2 wallpaperSampleA;
+            float2 wallpaperSampleB;
+            float2 wallpaperSampleC;
+            float2 wallpaperSampleD;
+            float2 wallpaperSampleE;
+            float2 wallpaperSampleF;
+            float2 wallpaperSampleG;
+            float2 wallpaperSampleH;
+            float sampleTransmissionA = 1.0;
+            float sampleTransmissionB = 1.0;
+            float sampleTransmissionC = 1.0;
+            float sampleTransmissionD = 1.0;
+            float sampleTransmissionE = 1.0;
+            float sampleTransmissionF = 1.0;
+            float sampleTransmissionG = 1.0;
+            float sampleTransmissionH = 1.0;
             if (solidMode < 0.5) {
                 float3 glassPathDirection = normalize(refractedRay);
                 float2 scatterAxis2 = float2(
@@ -1033,61 +1039,89 @@ class LiquidWallpaperRenderer(
                     frontCorrection, glassScatterRearValidity, glassPathLength
                 );
 
-                blurA = uWallpaper.eval(lookupA.xy).rgb * lookupA.z;
-                blurB = uWallpaper.eval(lookupB.xy).rgb * lookupB.z;
-                blurC = uWallpaper.eval(lookupC.xy).rgb * lookupC.z;
-                blurD = uWallpaper.eval(lookupD.xy).rgb * lookupD.z;
-                blurE = uWallpaper.eval(lookupE.xy).rgb * lookupE.z;
-                blurF = uWallpaper.eval(lookupF.xy).rgb * lookupF.z;
-                blurG = uWallpaper.eval(lookupG.xy).rgb * lookupG.z;
-                blurH = uWallpaper.eval(lookupH.xy).rgb * lookupH.z;
+                wallpaperSampleA = lookupA.xy;
+                wallpaperSampleB = lookupB.xy;
+                wallpaperSampleC = lookupC.xy;
+                wallpaperSampleD = lookupD.xy;
+                wallpaperSampleE = lookupE.xy;
+                wallpaperSampleF = lookupF.xy;
+                wallpaperSampleG = lookupG.xy;
+                wallpaperSampleH = lookupH.xy;
+                sampleTransmissionA = lookupA.z;
+                sampleTransmissionB = lookupB.z;
+                sampleTransmissionC = lookupC.z;
+                sampleTransmissionD = lookupD.z;
+                sampleTransmissionE = lookupE.z;
+                sampleTransmissionF = lookupF.z;
+                sampleTransmissionG = lookupG.z;
+                sampleTransmissionH = lookupH.z;
             } else {
                 float blurRadius = mix(44.0, 38.0, solidMode);
                 float2 blurDiagonal = float2(
                     blurRadius * 0.7071,
                     blurRadius * 0.7071
                 );
-                blurA = uWallpaper.eval(clamp(
+                wallpaperSampleA = clamp(
                     samplePoint + float2(blurRadius, 0.0),
                     float2(0.0),
                     uResolution
-                )).rgb;
-                blurB = uWallpaper.eval(clamp(
+                );
+                wallpaperSampleB = clamp(
                     samplePoint - float2(blurRadius, 0.0),
                     float2(0.0),
                     uResolution
-                )).rgb;
-                blurC = uWallpaper.eval(clamp(
+                );
+                wallpaperSampleC = clamp(
                     samplePoint + float2(0.0, blurRadius),
                     float2(0.0),
                     uResolution
-                )).rgb;
-                blurD = uWallpaper.eval(clamp(
+                );
+                wallpaperSampleD = clamp(
                     samplePoint - float2(0.0, blurRadius),
                     float2(0.0),
                     uResolution
-                )).rgb;
-                blurE = uWallpaper.eval(
-                    clamp(samplePoint + blurDiagonal, float2(0.0), uResolution)
-                ).rgb;
-                blurF = uWallpaper.eval(
-                    clamp(samplePoint - blurDiagonal, float2(0.0), uResolution)
-                ).rgb;
-                blurG = uWallpaper.eval(
-                    clamp(
-                        samplePoint + float2(blurDiagonal.x, -blurDiagonal.y),
-                        float2(0.0),
-                        uResolution
-                    )
-                ).rgb;
-                blurH = uWallpaper.eval(
-                    clamp(
-                        samplePoint + float2(-blurDiagonal.x, blurDiagonal.y),
-                        float2(0.0),
-                        uResolution
-                    )
-                ).rgb;
+                );
+                wallpaperSampleE = clamp(
+                    samplePoint + blurDiagonal,
+                    float2(0.0),
+                    uResolution
+                );
+                wallpaperSampleF = clamp(
+                    samplePoint - blurDiagonal,
+                    float2(0.0),
+                    uResolution
+                );
+                wallpaperSampleG = clamp(
+                    samplePoint + float2(blurDiagonal.x, -blurDiagonal.y),
+                    float2(0.0),
+                    uResolution
+                );
+                wallpaperSampleH = clamp(
+                    samplePoint + float2(-blurDiagonal.x, blurDiagonal.y),
+                    float2(0.0),
+                    uResolution
+                );
             }
+
+            // Exactly eight wallpaper evaluations are shared by both material
+            // paths; only the selected coordinates and Beer/Fresnel throughput
+            // differ for Liquid Glass.
+            float3 blurA =
+                uWallpaper.eval(wallpaperSampleA).rgb * sampleTransmissionA;
+            float3 blurB =
+                uWallpaper.eval(wallpaperSampleB).rgb * sampleTransmissionB;
+            float3 blurC =
+                uWallpaper.eval(wallpaperSampleC).rgb * sampleTransmissionC;
+            float3 blurD =
+                uWallpaper.eval(wallpaperSampleD).rgb * sampleTransmissionD;
+            float3 blurE =
+                uWallpaper.eval(wallpaperSampleE).rgb * sampleTransmissionE;
+            float3 blurF =
+                uWallpaper.eval(wallpaperSampleF).rgb * sampleTransmissionF;
+            float3 blurG =
+                uWallpaper.eval(wallpaperSampleG).rgb * sampleTransmissionG;
+            float3 blurH =
+                uWallpaper.eval(wallpaperSampleH).rgb * sampleTransmissionH;
 
             // Average the symmetric angular pair at each depth, then integrate
             // those four directional radiance estimates with the existing
