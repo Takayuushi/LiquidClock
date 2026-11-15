@@ -1001,10 +1001,18 @@ class LiquidWallpaperRenderer(
                 reflectedFaceLuma,
                 glassFaceReflectivity
             );
+            // Retain a small amount of reflected environment colour across
+            // front-facing glass, where Fresnel alone approaches its minimum.
+            // Keep this floor chroma-only: the transmitted face luminance is
+            // untouched, so dark glass stays dark instead of becoming a haze.
+            float glassFaceChromaReflectivity = max(
+                glassFaceReflectivity * 0.78,
+                0.055 * reflectionHighlightProtection
+            );
             float3 integratedFaceChroma = mix(
                 refractedFaceChroma,
                 reflectedFaceChroma,
-                glassFaceReflectivity * 0.78
+                glassFaceChromaReflectivity
             );
             float3 glassFace = clamp(
                 float3(transmittedFaceLuma) + integratedFaceChroma,
