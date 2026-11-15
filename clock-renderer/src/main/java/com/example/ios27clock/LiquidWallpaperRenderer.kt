@@ -398,24 +398,42 @@ class LiquidWallpaperRenderer(
                 0.88,
                 1.12
             );
-            float lensMagnification = clamp(
-                inversesqrt(rayMapDeterminant * rayMapDeterminant),
-                0.94,
-                1.06
-            );
             float lensRegion = smoothstep(
                 0.025,
                 0.16,
                 glassProfileSlope
             ) * glassProfileCoverage;
-            lensMagnification = mix(
+            float2 baseGlassRefractionOffset =
+                refractedRay.xy * GLASS_THICKNESS_PX * glassEdgePull;
+            // Use the complete local 2D ray-map Jacobian, not just its scalar
+            // area determinant. Its inverse carries directional stretch and
+            // cross-axis coupling into the sampled wallpaper coordinate. This
+            // is what lets diagonal bands bend around a curved glass stroke
+            // instead of receiving only a nearly uniform 2D scale adjustment.
+            float2 anisotropicGlassRefractionOffset = float2(
+                rayMapJacobianY * baseGlassRefractionOffset.x -
+                    rayMapJacobianXY * baseGlassRefractionOffset.y,
+                rayMapJacobianX * baseGlassRefractionOffset.y -
+                    rayMapJacobianXY * baseGlassRefractionOffset.x
+            ) / rayMapDeterminant;
+            // Bound the extra lens action so it cannot create edge kinks or
+            // unstable magnification. Directional shear is retained, while
+            // the total ray displacement may grow by at most 14 percent.
+            float baseRefractionLength = length(baseGlassRefractionOffset);
+            float mappedRefractionLength = length(
+                anisotropicGlassRefractionOffset
+            );
+            float refractionDisplacementLimit = baseRefractionLength * 1.14;
+            anisotropicGlassRefractionOffset *= min(
                 1.0,
-                lensMagnification,
+                refractionDisplacementLimit /
+                    max(mappedRefractionLength, 0.0001)
+            );
+            float2 glassRefractionOffset = mix(
+                baseGlassRefractionOffset,
+                anisotropicGlassRefractionOffset,
                 lensRegion
             );
-            float2 glassRefractionOffset =
-                refractedRay.xy * GLASS_THICKNESS_PX *
-                glassEdgePull * lensMagnification;
             float2 solidWarp =
                 refractionNormal *
                     (1.5 + solidEdge * 6.0 + solidBevel * 1.1) +
