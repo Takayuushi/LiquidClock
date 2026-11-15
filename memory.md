@@ -1705,7 +1705,7 @@ This is a must-preserve project fact. Do not call the font a GitHub font, a comm
 ## User clarification — `7` remains in scope (15 Nov 2026)
 - User clarified the earlier “leave 7” comment was joking; they are happy for the `7` to be improved alongside the other digits. Resume evaluating and improving the `7` as part of the shared material/optical model. This does not authorise digit-specific branches, per-glyph constants, screen-position rules or wallpaper-specific treatment. Keep all improvements glyph-independent and preserve the accepted `0`, `1` and `4` results.
 
-## Build #160 candidate — path-integrated in-scattering using existing wallpaper taps (15 Nov 2026)
+## Build #161 candidate — path-integrated in-scattering using existing wallpaper taps (15 Nov 2026)
 - Continues on `experiment/warm-transmission-132` from the user-reviewed #159. No branch switch, merge, tag, release or checkpoint.
 - Motivation: #159 makes direct/scattered energy depend on the curved SDF front/rear path, but its broad in-scatter source remains a single blurred environment blend. The next experiment adds spatial information from the actual projected front-to-rear ray path to the broad in-scatter source, while leaving the direct refracted lobe and Beer–Lambert energy split unchanged.
 - Renderer commits: `fe56f3a2fcd18c75b9c19c91e9cd011b77411dc9` introduced the path quadrature; `a3bd7389f5f2ef617dc1a036c64338416d501eda` restored exact legacy sample positions and equal weighting for Solid/Frosted. Final candidate renderer SHA is `a3bd7389f5f2ef617dc1a036c64338416d501eda`.
