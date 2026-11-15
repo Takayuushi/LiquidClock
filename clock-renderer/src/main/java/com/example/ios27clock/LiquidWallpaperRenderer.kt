@@ -1287,12 +1287,19 @@ class LiquidWallpaperRenderer(
                 glassBackInterfaceBlend * horizontalShoulder;
             float glassCurvatureDirectionalRetention =
                 0.035 * glassCurvedShoulderColourTransport;
+            // Give the broad, path-integrated environment a slightly
+            // larger share of the in-scattered lobe. Beer-Lambert extinction
+            // still controls how much energy enters this lobe; the local
+            // structure tensor only controls how its broad share responds to
+            // the wallpaper's band contrast. This softens the transmitted
+            // image by mixing nearby radiance through the same glass volume,
+            // without a screen-space blur or a colour-specific correction.
             float glassVolumeIsotropicWeight = clamp(
-                mix(0.62, 0.68, bandContrast) -
+                mix(0.70, 0.76, bandContrast) -
                     0.04 * chromaticRetention -
                     glassCurvatureDirectionalRetention,
-                0.55,
-                0.68
+                0.62,
+                0.76
             );
             float3 glassBroadInScatter = mix(
                 volumeScatteredTransmission,
