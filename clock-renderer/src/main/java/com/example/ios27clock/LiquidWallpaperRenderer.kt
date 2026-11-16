@@ -1871,6 +1871,13 @@ class LiquidWallpaperRenderer(
             float glassSurfaceReflectionAmount = mix(0.30, 0.90, glassVolumeFresnel) * (1.0 - solidMode);
             float3 glassSurfaceReflection = environmentReflection * glassSurfaceReflectionAmount;
             glassFace = clamp(glassFace + glassSurfaceReflection, 0.0, 1.0);
+            // Chrome glass body - intrinsic metallic substance that gives
+            // glyphs thick glass body like iOS 27. Applied as screen blend
+            // (adds light, preserves wallpaper colors underneath) gated by
+            // glass volume so thin edges stay transparent.
+            float3 chromeBody = float3(0.90, 0.92, 0.96);
+            float glassBodyAmount = glassVolumeRegion * 0.30 * (1.0 - solidMode);
+            glassFace = clamp(1.0 - (1.0 - glassFace) * (1.0 - chromeBody * glassBodyAmount), 0.0, 1.0);
             float innerGlassTint = smoothstep(0.0, 12.0, insideDistance) *
                 (1.0 - smoothstep(26.0, 64.0, insideDistance));
             glassFace = mix(
