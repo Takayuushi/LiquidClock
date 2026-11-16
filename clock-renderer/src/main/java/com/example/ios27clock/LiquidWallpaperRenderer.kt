@@ -1864,6 +1864,13 @@ class LiquidWallpaperRenderer(
                 0.0,
                 1.0
             );
+            // Strong surface reflection for chrome glass appearance
+            // Environment reflection blended into glass face, gated by Fresnel
+            // Stronger at edges/grazing angles, weaker face-on
+            // Gives glyphs the thick chrome body of iOS 27 - not just clear refraction
+            float glassSurfaceReflectionAmount = mix(0.30, 0.90, glassVolumeFresnel) * (1.0 - solidMode);
+            float3 glassSurfaceReflection = environmentReflection * glassSurfaceReflectionAmount;
+            glassFace = clamp(glassFace + glassSurfaceReflection, 0.0, 1.0);
             float innerGlassTint = smoothstep(0.0, 12.0, insideDistance) *
                 (1.0 - smoothstep(26.0, 64.0, insideDistance));
             glassFace = mix(
@@ -2131,17 +2138,9 @@ class LiquidWallpaperRenderer(
             colour += uAccentColor *
                 solidFillSpecular * 0.15 * solidMode;
 
-            // Fresnel adds the stronger grazing-angle reflection on top of
-            // the subtler face reflection. The broad specular remains visible
-            // on the front cap; tight glints stay confined to its shoulder.
-            float finalFresnelAmount =
-                glassVolumeFresnel * 0.15 * (1.0 - solidMode);
-            colour = clamp(
-                colour +
-                    environmentReflectionChroma * finalFresnelAmount * 0.72,
-                0.0,
-                1.0
-            );
+            // Fresnel surface reflection removed - replaced by stronger glassSurfaceReflection
+            // applied directly to glassFace above (chrome body look)
+
             float glassRimLighting = glassRim *
                 pow(max(dot(glassSurfaceNormal, keyLight3D), 0.0), 1.35) * glassHorizontalHighlight;
             // Let the broad shoulder reflection carry the colour of the
