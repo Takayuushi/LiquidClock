@@ -41,6 +41,7 @@ android {
 }
 
 dependencies {
+    implementation("com.github.styropyr0:PrismalAGSL:Prismal:1.0.7")
     implementation(project(":clock-renderer"))
     implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
 }
