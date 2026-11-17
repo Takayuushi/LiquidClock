@@ -110,13 +110,14 @@ class LiquidWallpaperRenderer(
             
             float solidMode = clamp(uFrosted, 0.0, 1.0);
             
-            // 1. Calculate SDF and 2D Gradient
+            // 1. SDF and Distance
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
-            float d = max(-signedDistance, 0.0); 
-            
-            float2 stepSize = float2(5.0, 5.0) * uSdfScale;
+            float d = max(-signedDistance, 0.0);
+
+            // 2. Gradient (Normal Map)
+            float2 stepSize = float2(6.0, 6.0) * uSdfScale;
             float sdfL = uGlyphSdf.eval(sdfPoint - float2(stepSize.x, 0.0)).a;
             float sdfR = uGlyphSdf.eval(sdfPoint + float2(stepSize.x, 0.0)).a;
             float sdfT = uGlyphSdf.eval(sdfPoint - float2(0.0, stepSize.y)).a;
@@ -125,67 +126,43 @@ class LiquidWallpaperRenderer(
             float gradLen = length(grad);
             float2 normal2D = gradLen > 0.001 ? -normalize(grad) : float2(0.0);
 
-            // 2. Spherical Dome Normal (Apple's Liquid Look)
-            float R = 40.0; // Radius of the liquid curve
-            float h = sqrt(max(R*R - d*d, 0.0));
-            
-            // Build a true 3D normal. At the edge (d=R), N is horizontal (xy). 
-            // At the center (d=0), N is vertical (z).
-            float3 N = normalize(float3(normal2D * (d/R), h/R + 0.001));
+            // 3. Refraction (Warp)
+            float edgeDist = clamp(abs(signedDistance) / 30.0, 0.0, 1.0);
+            float smoothEdge = smoothstep(0.0, 1.0, edgeDist);
+            float warpStrength = 40.0 * (1.0 - solidMode);
+            float2 warp = normal2D * warpStrength * (1.0 - smoothEdge);
 
-            // 3. Screen-Space Refraction (Liquid Bend)
-            float3 V = float3(0.0, 0.0, -1.0); 
-            float3 refr = refract(V, N, 1.0 / 1.15); // IOR 1.15 for soft glass
-            float thickness = 35.0 * (1.0 - solidMode);
-            float2 warp = refr.xy * thickness;
-            
-            // Chromatic dispersion (Soft RGB split)
-            float2 warpR = warp * 1.04;
-            float2 warpG = warp * 1.00;
-            float2 warpB = warp * 0.96;
+            // 4. Background Blur (9-tap to get that foggy look)
+            float3 blur = uWallpaper.eval(clamp(p + warp, float2(0.0), uResolution)).rgb * 0.2;
+            float r = 15.0;
+            blur += uWallpaper.eval(clamp(p + warp + float2(r, 0.0), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp - float2(r, 0.0), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp + float2(0.0, r), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp - float2(0.0, r), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp + float2(r*0.7, r*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp - float2(r*0.7, r*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp + float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(p + warp - float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
 
-            float3 bgSharp;
-            bgSharp.r = uWallpaper.eval(clamp(p + warpR, float2(0.0), uResolution)).r;
-            bgSharp.g = uWallpaper.eval(clamp(p + warpG, float2(0.0), uResolution)).g;
-            bgSharp.b = uWallpaper.eval(clamp(p + warpB, float2(0.0), uResolution)).b;
+            // 5. Milkiness (This ensures it is NEVER faint)
+            float3 milkColor = float3(0.85, 0.9, 0.95);
+            float3 glass = mix(blur, milkColor, 0.35);
 
-            // 4. Soft Blur (The "Foggy" Interior)
-            // 4-tap blur to give it that thick liquid volume without shattering
-            float3 bgBlur = uWallpaper.eval(p).rgb * 0.4;
-            bgBlur += uWallpaper.eval(clamp(p + float2(6.0, 6.0), float2(0.0), uResolution)).rgb * 0.15;
-            bgBlur += uWallpaper.eval(clamp(p + float2(-6.0, 6.0), float2(0.0), uResolution)).rgb * 0.15;
-            bgBlur += uWallpaper.eval(clamp(p + float2(6.0, -6.0), float2(0.0), uResolution)).rgb * 0.15;
-            bgBlur += uWallpaper.eval(clamp(p + float2(-6.0, -6.0), float2(0.0), uResolution)).rgb * 0.15;
-            
-            // Mix sharp refraction with soft blur for the milky look
-            float3 bg = mix(bgBlur, bgSharp, 0.65);
+            // 6. Thick Inner Shadow (Gives 3D volume)
+            float innerShadow = smoothstep(0.0, 20.0, d);
+            glass *= mix(0.65, 1.0, innerShadow);
 
-            // 5. Lighting (Soft Specular & Edge Glow)
-            float3 L = normalize(float3(-0.4, -0.7, 0.6)); // Top-left light
-            float3 H = normalize(L + float3(0.0, 0.0, 1.0));
-            
-            // Broad, soft specular reflection
-            float spec = pow(max(dot(N, H), 0.0), 20.0) * 0.6;
-            
-            // Soft rim glow (no hard plastic edges)
-            float rim = pow(1.0 - max(N.z, 0.0), 3.0) * 0.4;
+            // 7. Bright Rim (Guarantees a strong edge)
+            float rim = 1.0 - smoothstep(0.0, 5.0, d);
+            glass += float3(1.0) * rim * 0.8;
 
-            // 6. Compose Glass
-            // Add a tiny bit of silver to the interior, but keep colors vivid
-            float3 glass = mix(bg, float3(0.85, 0.9, 0.95), 0.12);
-            
-            // Add lighting
-            glass += float3(1.0) * spec;
-            glass += float3(0.8, 0.9, 1.0) * rim;
-
-            // 7. Solid / Frosted Mode
-            float3 frosted = mix(bgBlur, uClockTint, 0.3 + uTintStrength);
-            frosted += float3(1.0) * spec * 0.5;
+            // 8. Solid Mode (Frosted)
+            float3 frosted = mix(blur, uClockTint, 0.4 + uTintStrength);
+            frosted += float3(1.0) * rim * 0.4;
 
             float3 finalColor = mix(glass, frosted, solidMode);
 
-            float alpha = clamp(coverage, 0.0, 1.0);
-            return half4(finalColor * alpha, alpha);
+            return half4(finalColor * coverage, coverage);
         }
     """.trimIndent()
     }
