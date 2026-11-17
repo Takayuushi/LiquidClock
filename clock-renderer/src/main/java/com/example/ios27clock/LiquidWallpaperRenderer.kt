@@ -110,13 +110,12 @@ class LiquidWallpaperRenderer(
             
             float solidMode = clamp(uFrosted, 0.0, 1.0);
             
-            // 1. Calculate SDF and Distance
+            // 1. Calculate SDF and 2D Gradient
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
             float d = max(-signedDistance, 0.0); 
             
-            // 2D Gradient (points inward from edges)
             float2 stepSize = float2(5.0, 5.0) * uSdfScale;
             float sdfL = uGlyphSdf.eval(sdfPoint - float2(stepSize.x, 0.0)).a;
             float sdfR = uGlyphSdf.eval(sdfPoint + float2(stepSize.x, 0.0)).a;
@@ -126,59 +125,66 @@ class LiquidWallpaperRenderer(
             float gradLen = length(grad);
             float2 normal2D = gradLen > 0.001 ? -normalize(grad) : float2(0.0);
 
-            // 2. Build TRUE Bevel Normal
-            // We want a normal that points straight out (0,0,1) in the center,
-            // and curves outward (normal2D) at the edges.
-            float bevelWidth = 18.0;
-            float edgeFactor = 1.0 - smoothstep(0.0, bevelWidth, d);
-            // Tilt the normal downward at the edges
-            float3 N = normalize(float3(normal2D * edgeFactor, 1.0 - edgeFactor * 0.4));
+            // 2. Spherical Dome Normal (Apple's Liquid Look)
+            float R = 40.0; // Radius of the liquid curve
+            float h = sqrt(max(R*R - d*d, 0.0));
+            
+            // Build a true 3D normal. At the edge (d=R), N is horizontal (xy). 
+            // At the center (d=0), N is vertical (z).
+            float3 N = normalize(float3(normal2D * (d/R), h/R + 0.001));
 
-            // 3. Screen-Space Refraction (Lens)
+            // 3. Screen-Space Refraction (Liquid Bend)
             float3 V = float3(0.0, 0.0, -1.0); 
-            float3 refr = refract(V, N, 1.0 / 1.3);
-            float thickness = 45.0 * (1.0 - solidMode);
+            float3 refr = refract(V, N, 1.0 / 1.15); // IOR 1.15 for soft glass
+            float thickness = 35.0 * (1.0 - solidMode);
             float2 warp = refr.xy * thickness;
             
-            // Chromatic dispersion at edges
-            float2 warpR = warp * 1.05;
+            // Chromatic dispersion (Soft RGB split)
+            float2 warpR = warp * 1.04;
             float2 warpG = warp * 1.00;
-            float2 warpB = warp * 0.95;
+            float2 warpB = warp * 0.96;
 
-            float3 bg;
-            bg.r = uWallpaper.eval(clamp(p + warpR, float2(0.0), uResolution)).r;
-            bg.g = uWallpaper.eval(clamp(p + warpG, float2(0.0), uResolution)).g;
-            bg.b = uWallpaper.eval(clamp(p + warpB, float2(0.0), uResolution)).b;
+            float3 bgSharp;
+            bgSharp.r = uWallpaper.eval(clamp(p + warpR, float2(0.0), uResolution)).r;
+            bgSharp.g = uWallpaper.eval(clamp(p + warpG, float2(0.0), uResolution)).g;
+            bgSharp.b = uWallpaper.eval(clamp(p + warpB, float2(0.0), uResolution)).b;
 
-            // 4. Lighting
-            float3 L = normalize(float3(-0.5, -0.8, 0.8)); // Top-left light
+            // 4. Soft Blur (The "Foggy" Interior)
+            // 4-tap blur to give it that thick liquid volume without shattering
+            float3 bgBlur = uWallpaper.eval(p).rgb * 0.4;
+            bgBlur += uWallpaper.eval(clamp(p + float2(6.0, 6.0), float2(0.0), uResolution)).rgb * 0.15;
+            bgBlur += uWallpaper.eval(clamp(p + float2(-6.0, 6.0), float2(0.0), uResolution)).rgb * 0.15;
+            bgBlur += uWallpaper.eval(clamp(p + float2(6.0, -6.0), float2(0.0), uResolution)).rgb * 0.15;
+            bgBlur += uWallpaper.eval(clamp(p + float2(-6.0, -6.0), float2(0.0), uResolution)).rgb * 0.15;
+            
+            // Mix sharp refraction with soft blur for the milky look
+            float3 bg = mix(bgBlur, bgSharp, 0.65);
+
+            // 5. Lighting (Soft Specular & Edge Glow)
+            float3 L = normalize(float3(-0.4, -0.7, 0.6)); // Top-left light
             float3 H = normalize(L + float3(0.0, 0.0, 1.0));
             
-            // Sharp specular glint on the curved bevel
-            float spec = pow(max(dot(N, H), 0.0), 50.0) * 1.8;
-            // Bright rim (Fresnel)
-            float fresnel = pow(1.0 - max(N.z, 0.0), 3.0) * 0.8;
-            // Directional rim highlight
-            float rim = pow(max(dot(N, L), 0.0), 4.0) * 0.5;
+            // Broad, soft specular reflection
+            float spec = pow(max(dot(N, H), 0.0), 20.0) * 0.6;
+            
+            // Soft rim glow (no hard plastic edges)
+            float rim = pow(1.0 - max(N.z, 0.0), 3.0) * 0.4;
 
-            // 5. Compose Glass (Milky Chrome look)
-            // Add a slight silver fill to the interior
-            float3 glass = mix(bg, float3(0.85, 0.9, 0.95), 0.25);
+            // 6. Compose Glass
+            // Add a tiny bit of silver to the interior, but keep colors vivid
+            float3 glass = mix(bg, float3(0.85, 0.9, 0.95), 0.12);
             
             // Add lighting
             glass += float3(1.0) * spec;
-            glass += float3(0.8, 0.9, 1.0) * fresnel;
-            glass += float3(1.0) * rim;
+            glass += float3(0.8, 0.9, 1.0) * rim;
 
-            // 6. Solid / Frosted Mode
-            float3 frosted = mix(bg, uClockTint, 0.3 + uTintStrength);
-            frosted += float3(1.0) * spec * 0.2;
-            frosted += float3(1.0) * rim * 0.3;
+            // 7. Solid / Frosted Mode
+            float3 frosted = mix(bgBlur, uClockTint, 0.3 + uTintStrength);
+            frosted += float3(1.0) * spec * 0.5;
 
             float3 finalColor = mix(glass, frosted, solidMode);
 
-            // Force alpha to be solid inside the glyph
-            float alpha = clamp(coverage * 1.5, 0.0, 1.0);
+            float alpha = clamp(coverage, 0.0, 1.0);
             return half4(finalColor * alpha, alpha);
         }
     """.trimIndent()
