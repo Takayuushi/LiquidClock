@@ -129,39 +129,34 @@ class LiquidWallpaperRenderer(
             float3 center = uWallpaper.eval(samplePoint).rgb;
             float radius = 12.0;
             float3 blur = center * 0.2;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(radius, 0.0), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(radius, 0.0), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(0.0, radius), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(0.0, radius), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(radius*0.7, radius*0.7), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(radius*0.7, radius*0.7), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(radius*0.7, -radius*0.7), 0.0, uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(radius*0.7, -radius*0.7), 0.0, uResolution)).rgb * 0.1;
+            
+            // FIXED: Changed 0.0 to float2(0.0) in all clamps!
+            blur += uWallpaper.eval(clamp(samplePoint + float2(radius, 0.0), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint - float2(radius, 0.0), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint + float2(0.0, radius), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint - float2(0.0, radius), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint + float2(radius*0.7, radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint - float2(radius*0.7, radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint + float2(radius*0.7, -radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(samplePoint - float2(radius*0.7, -radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
 
             // 4. Glass Material Compositing
-            // Mix the sharp refracted background with the milky blur
             float3 glass = mix(blur, center, 0.35);
-            
-            // Add a strong milky silver fill (simulating internal fog)
             glass = mix(glass, float3(0.8, 0.85, 0.9), 0.35);
 
             // 5. Inner Shadow & Rim Lighting
-            // Dark inner shadow for depth
             float innerShadow = smoothstep(0.0, 15.0, signedDistance) * (1.0 - smoothstep(15.0, 30.0, signedDistance));
             glass *= mix(1.0, 0.6, innerShadow);
             
-            // Bright white rim light
             float rim = exp(-abs(signedDistance) / 3.0);
             glass += float3(1.0) * rim * 0.5;
 
             // 6. Solid / Frosted Mode
-            // Solid mode is a simple colored blur without the sharp refraction
             float3 frosted = mix(blur, uClockTint, 0.3 + uTintStrength);
-            frosted += float3(1.0) * exp(-abs(signedDistance) / 5.0) * 0.2; // Softer rim
+            frosted += float3(1.0) * exp(-abs(signedDistance) / 5.0) * 0.2;
 
             float3 finalColor = mix(glass, frosted, solidMode);
 
-            // Alpha handling
             float alpha = clamp(coverage * (1.0 + rim * 0.2), 0.0, 1.0);
             return half4(finalColor * alpha, alpha);
         }
