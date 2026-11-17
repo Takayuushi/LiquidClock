@@ -117,7 +117,7 @@ class LiquidWallpaperRenderer(
             float d = max(signedDistance, 0.0);
 
             // 2. Original SDF Gradient
-            float2 sampleStep = float2(4.25, 4.25) * uSdfScale;
+            float2 sampleStep = float2(14.0, 14.0) * uSdfScale; // SMOOTHED
             float sdfLeft = uGlyphSdf.eval(sdfPoint - float2(sampleStep.x, 0.0)).a;
             float sdfRight = uGlyphSdf.eval(sdfPoint + float2(sampleStep.x, 0.0)).a;
             float sdfTop = uGlyphSdf.eval(sdfPoint - float2(0.0, sampleStep.y)).a;
@@ -161,8 +161,8 @@ class LiquidWallpaperRenderer(
             float glassFillGlint = pow(max(dot(glassSurfaceNormal, fillHalfVector), 0.0), 30.0) * 0.8;
             
             // 5. Original Refraction (No Shattering!)
-            const float GLASS_IOR = 1.52;
-            const float GLASS_THICKNESS_PX = 46.0;
+            const float GLASS_IOR = 1.15; // SOFTER REFRACTION
+            const float GLASS_THICKNESS_PX = 22.0; // THINNER GLASS
             float eta = 1.0 / GLASS_IOR;
             float cosIncident = clamp(glassSurfaceNormal.z, 0.0, 1.0);
             float refractK = max(1.0 - eta * eta * (1.0 - cosIncident * cosIncident), 0.0);
