@@ -256,7 +256,7 @@ class LiquidWallpaperRenderer(
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
             // A slightly wider finite-difference baseline filters single-pixel
             // SDF stair-steps before they become visible as fractured refraction.
-            float2 sampleStep = float2(14.0, 14.0) * uSdfScale; // SMOOTHED NORMALS
+            float2 sampleStep = float2(4.25, 4.25) * uSdfScale;
             float sdfLeft = uGlyphSdf.eval(sdfPoint - float2(sampleStep.x, 0.0)).a;
             float sdfRight = uGlyphSdf.eval(sdfPoint + float2(sampleStep.x, 0.0)).a;
             float sdfTop = uGlyphSdf.eval(sdfPoint - float2(0.0, sampleStep.y)).a;
@@ -1614,12 +1614,10 @@ class LiquidWallpaperRenderer(
                 (1.0 - saturatedRefractedGlass) *
                 (1.0 - brightGlassBounce);
             float3 glassTransmitted = mix(
-            saturatedRefractedGlass,
-            screenedGlassFace,
-            glassBounceStrength
-        );
-        // APPLE-STYLE FOG: Heavy blend with the blurred background
-        glassTransmitted = mix(glassTransmitted, frostedWallpaper * 1.5, 0.65);
+                saturatedRefractedGlass,
+                screenedGlassFace,
+                glassBounceStrength
+            );
             // Treat transmission as one glass medium: a small directional
             // microfacet component preserves optical refraction, while the
             // isotropic wallpaper environment supplies the broad atmospheric
@@ -1861,9 +1859,11 @@ class LiquidWallpaperRenderer(
                 reflectedFaceChroma,
                 glassFaceChromaReflectivity
             );
-            // APPLE-STYLE CHROME: Vertical silver gradient
-        float3 chromeGradient = mix(float3(0.3, 0.35, 0.4), float3(0.95, 0.98, 1.0), clamp((p.y - uClockCenter.y * uResolution.y) / (uResolution.y * 0.25) + 0.5, 0.0, 1.0));
-        float3 glassFace = mix(clamp(float3(transmittedFaceLuma) + integratedFaceChroma, 0.0, 1.0), chromeGradient, 0.45);
+            float3 glassFace = clamp(
+                float3(transmittedFaceLuma) + integratedFaceChroma,
+                0.0,
+                1.0
+            );
             float innerGlassTint = smoothstep(0.0, 12.0, insideDistance) *
                 (1.0 - smoothstep(26.0, 64.0, insideDistance));
             glassFace = mix(
@@ -2171,7 +2171,7 @@ class LiquidWallpaperRenderer(
                 1.0
             );
             colour += glassKeyGlintColour *
-            glassKeyGlint * (1.0 - solidMode) * 2.5; // STRONGER CHROME EDGE
+                glassKeyGlint * (1.0 - solidMode) * 1.28;
             colour += float3(0.68, 0.82, 1.0) *
                 glassFillGlint * (1.0 - solidMode) * 0.88;
             colour += float3(0.96, 0.98, 1.0) *
