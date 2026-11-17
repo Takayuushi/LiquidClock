@@ -109,70 +109,82 @@ class LiquidWallpaperRenderer(
             if (coverage < 0.002) return half4(0.0);
             
             float solidMode = clamp(uFrosted, 0.0, 1.0);
-            
-            // Use uColonMask so the compiler doesn't optimize it out
             float colCoverage = uColonMask.eval(p - uColonOrigin).a;
             
-            // Use uReflectionEnvironment so the compiler doesn't optimize it out
-            float3 env = uReflectionEnvironment.eval(p).rgb;
-            
-            // 1. SDF Sample
+            // 1. SDF and Normal
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float d = (sdf - 0.5) * 2.0 * uSdfRange; 
 
-            // 2. Gradient
-            float e = 10.0 * uSdfScale; 
+            float e = 10.0 * uSdfScale;
             float gx = uGlyphSdf.eval(sdfPoint + float2(e, 0.0)).a - uGlyphSdf.eval(sdfPoint - float2(e, 0.0)).a;
             float gy = uGlyphSdf.eval(sdfPoint + float2(0.0, e)).a - uGlyphSdf.eval(sdfPoint - float2(0.0, e)).a;
             float2 grad = normalize(float2(gx, gy) + float2(0.0001, 0.0001));
 
-            // 3. Prismal Bevel
-            float bevel = 25.0; 
+            // 2. Thick Glass Bevel
+            float bevel = 35.0; 
             float t = clamp(-d / bevel, 0.0, 1.0);
             float slope = (1.0 - t) * (1.0 - t);
-            float3 N = normalize(float3(grad * slope, 1.0 - 0.6 * slope));
+            float3 N = normalize(float3(grad * slope, 1.0 - 0.7 * slope));
 
-            // 4. Refraction & Chromatic Dispersion
-            float iRefract = 1.0;
-            float2 off = N.xy * bevel * 1.2 * iRefract;
-            float2 ca = N.xy * slope * 4.0 * iRefract;
+            // 3. Refraction
+            float2 off = N.xy * bevel * 1.2;
             float2 base = p + off;
 
-            float3 src;
-            src.r = uWallpaper.eval(clamp(base + ca, float2(0.0), uResolution - 1.0)).r;
-            src.g = uWallpaper.eval(clamp(base, float2(0.0), uResolution - 1.0)).g;
-            src.b = uWallpaper.eval(clamp(base - ca, float2(0.0), uResolution - 1.0)).b;
+            // 4. Huge Background Blur (The "Fog")
+            float3 blur = uWallpaper.eval(clamp(base, float2(0.0), uResolution - 1.0)).rgb * 0.2;
+            float r = 25.0; 
+            blur += uWallpaper.eval(clamp(base + float2(r, 0.0), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base - float2(r, 0.0), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base + float2(0.0, r), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base - float2(0.0, r), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base + float2(r*0.7, r*0.7), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base - float2(r*0.7, r*0.7), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base + float2(r*0.7, -r*0.7), float2(0.0), uResolution - 1.0)).rgb * 0.1;
+            blur += uWallpaper.eval(clamp(base - float2(r*0.7, -r*0.7), float2(0.0), uResolution - 1.0)).rgb * 0.1;
 
-            // 5. Frosted / Milky
-            float luma = dot(src, float3(0.2126, 0.7152, 0.0722));
-            float3 col = float3(luma) + (src - float3(luma)) * 1.2;
-            col = mix(col, float3(0.85, 0.9, 0.95), 0.25);
+            // 5. Base Glass Body (Mixing sharp streaks with fog)
+            float3 glass = mix(blur, uWallpaper.eval(clamp(base, float2(0.0), uResolution - 1.0)).rgb, 0.30);
 
-            // 6. Lighting (Fresnel & Specular)
-            float fres = pow(1.0 - max(N.z, 0.0), 4.0);
-            float3 L = normalize(float3(-0.5, -0.8, 0.6));
-            float spec = pow(max(dot(N, L), 0.0), 40.0);
+            // 6. Chrome Reflection (The Apple Secret)
+            // Reflect the wallpaper across the flat face of the glass
+            float2 envOffset = N.xy * 30.0; 
+            float3 env = uWallpaper.eval(clamp(p + envOffset, float2(0.0), uResolution - 1.0)).rgb;
             
-            // Add the environment reflection to the specular
-            col += env * spec * 0.5;
-            col += float3(1.0) * spec * 1.5;
-            col += float3(0.9, 0.95, 1.0) * fres * 0.7;
+            // 7. Lighting
+            float3 L = normalize(float3(-0.5, -0.8, 0.6));
+            float3 H = normalize(L + float3(0.0, 0.0, 1.0));
+            
+            // Broad specular highlight on the shoulders
+            float spec = pow(max(dot(N, H), 0.0), 20.0) * 1.5;
+            
+            // Soft Fresnel rim
+            float fres = pow(1.0 - max(N.z, 0.0), 3.0) * 0.6;
 
-            // 7. Tint
-            col = mix(col, uClockTint, uTintStrength);
+            // Combine: Mix in the chrome reflection based on the normal facing
+            float chromeMix = smoothstep(0.1, 0.8, N.z) * 0.4; 
+            glass = mix(glass, env, chromeMix);
 
-            // 8. Solid Mode
+            // Add the highlights
+            glass += env * spec * 0.8; 
+            glass += float3(1.0) * spec * 0.5;
+            glass += float3(0.9, 0.95, 1.0) * fres;
+
+            // Add a tiny bit of milky frost to the center to match the body
+            glass = mix(glass, float3(0.85, 0.9, 0.95), 0.15);
+
+            // 8. Tint and Solid Mode
+            glass = mix(glass, uClockTint, uTintStrength);
+
             if (solidMode > 0.5) {
-                col = mix(src, uClockTint, 0.4);
-                col += float3(1.0) * fres * 0.5;
+                glass = mix(blur, uClockTint, 0.4);
+                glass += float3(1.0) * fres * 0.5;
             }
 
-            // Ensure colon coverage is applied (prevents compiler optimization)
-            col += float3(colCoverage) * 0.0;
+            glass += float3(colCoverage) * 0.0;
 
             float alpha = clamp(coverage * 1.5, 0.0, 1.0);
-            return half4(col * alpha, alpha);
+            return half4(glass * alpha, alpha);
         }
     """.trimIndent()
     }
