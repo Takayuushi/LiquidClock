@@ -294,7 +294,7 @@ class LiquidWallpaperRenderer(
             // Keep the Glass digit silhouette at the original cap width.
             // The previous 24px cap made the bright shoulder look too broad,
             // especially around the SF Pro 4 and 7.
-            float glassDigitRadius = 55.0;
+            float glassDigitRadius = 35.0;
             float glassProfileRadius = mix(
                 glassDigitRadius,
                 3.2,
