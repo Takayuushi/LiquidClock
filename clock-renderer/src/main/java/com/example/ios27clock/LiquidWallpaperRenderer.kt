@@ -2171,11 +2171,11 @@ class LiquidWallpaperRenderer(
                 1.0
             );
             colour += glassKeyGlintColour *
-                glassKeyGlint * (1.0 - solidMode) * 1.6;
+                glassKeyGlint * (1.0 - solidMode) * 2.8;
             colour += float3(1.0, 1.0, 1.0) *
-                glassFillGlint * (1.0 - solidMode) * 0.65;
+                glassFillGlint * (1.0 - solidMode) * 0.80;
             colour += float3(1.0, 1.0, 1.0) *
-                glassRimLighting * (1.0 - solidMode) * 1.2;
+                glassRimLighting * (1.0 - solidMode) * 2.2;
 
             // Unified secondary bevel reflection: every glyph uses the same
             // height-map normal, curvature gate and light/view half-vector.
@@ -2285,7 +2285,7 @@ class LiquidWallpaperRenderer(
             float alpha = clamp(
                 coverage * (
                     bodyOpacity +
-                    edgeBand * mix(0.18, 0.10, solidMode) +
+                    edgeBand * mix(0.30, 0.10, solidMode) +
                     outerLip * mix(0.035, 0.07, solidMode)
                 ),
                 0.0,
