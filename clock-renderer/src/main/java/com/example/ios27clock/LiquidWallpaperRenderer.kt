@@ -115,52 +115,62 @@ class LiquidWallpaperRenderer(
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
             
-            float2 stepSize = float2(6.0, 6.0) * uSdfScale;
+            float2 stepSize = float2(4.0, 4.0) * uSdfScale;
             float sdfL = uGlyphSdf.eval(sdfPoint - float2(stepSize.x, 0.0)).a;
             float sdfR = uGlyphSdf.eval(sdfPoint + float2(stepSize.x, 0.0)).a;
             float sdfT = uGlyphSdf.eval(sdfPoint - float2(0.0, stepSize.y)).a;
             float sdfB = uGlyphSdf.eval(sdfPoint + float2(0.0, stepSize.y)).a;
             float2 grad = float2(sdfR - sdfL, sdfB - sdfT);
             float gradLen = length(grad);
-            float2 normal = gradLen > 0.001 ? -grad / gradLen : float2(0.0);
+            float2 normal = gradLen > 0.001 ? -normalize(grad) : float2(0.0);
 
-            // 2. Screen-Space Refraction (Lens Effect)
-            float edgeDist = clamp(abs(signedDistance) / 20.0, 0.0, 1.0);
-            float2 warp = normal * edgeDist * 25.0;
-            float2 samplePoint = clamp(p + warp, float2(0.0), uResolution);
-
-            // 3. Sample Background (9-tap blur for the milky interior)
-            float3 center = uWallpaper.eval(samplePoint).rgb;
-            float radius = 12.0;
-            float3 blur = center * 0.2;
+            // 2. Crystal Lens Refraction (No Blur!)
+            // Bends the background strongest at the edge, zero in the center
+            float edgeDist = clamp(abs(signedDistance) / 25.0, 0.0, 1.0); 
+            float smoothEdge = smoothstep(0.0, 1.0, edgeDist);
             
-            blur += uWallpaper.eval(clamp(samplePoint + float2(radius, 0.0), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(radius, 0.0), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(0.0, radius), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(0.0, radius), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(radius*0.7, radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(radius*0.7, radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint + float2(radius*0.7, -radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(samplePoint - float2(radius*0.7, -radius*0.7), float2(0.0), uResolution)).rgb * 0.1;
+            float warpStrength = 35.0;
+            float2 warp = normal * warpStrength * (1.0 - smoothEdge);
 
-            // 4. Glass Material Compositing
-            float3 glass = mix(blur, center, 0.35);
-            glass = mix(glass, float3(0.8, 0.85, 0.9), 0.35);
+            // Chromatic Dispersion (Split RGB slightly at the edges)
+            float2 warpR = warp * 1.04;
+            float2 warpG = warp * 1.00;
+            float2 warpB = warp * 0.96;
 
-            // 5. Inner Shadow & Rim Lighting
-            float innerShadow = smoothstep(0.0, 15.0, signedDistance) * (1.0 - smoothstep(15.0, 30.0, signedDistance));
-            glass *= mix(1.0, 0.6, innerShadow);
+            float3 bg;
+            bg.r = uWallpaper.eval(clamp(p + warpR, float2(0.0), uResolution)).r;
+            bg.g = uWallpaper.eval(clamp(p + warpG, float2(0.0), uResolution)).g;
+            bg.b = uWallpaper.eval(clamp(p + warpB, float2(0.0), uResolution)).b;
+
+            // 3. Thickness & Milkiness (Apple's subtle internal fog)
+            float thickness = smoothstep(0.0, 15.0, signedDistance);
+            float3 glass = mix(bg, float3(0.85, 0.9, 0.95), thickness * 0.25);
+
+            // 4. Lighting (Fresnel Rim & Specular Glint)
+            // Create a fake 3D normal for lighting math
+            float3 N3 = normalize(float3(normal, sqrt(max(1.0 - dot(normal, normal), 0.0))));
+            float3 lightDir = normalize(float3(-0.5, -0.6, 1.0)); // Light from top-left
+            float3 viewDir = float3(0.0, 0.0, 1.0);
+            float3 halfVector = normalize(lightDir + viewDir);
             
-            float rim = exp(-abs(signedDistance) / 3.0);
-            glass += float3(1.0) * rim * 0.5;
+            // Sharp glint on the curved edges
+            float spec = pow(max(dot(N3, halfVector), 0.0), 30.0);
+            // Broad soft reflection on the shoulders
+            float broadSpec = pow(max(dot(N3, halfVector), 0.0), 5.0) * 0.2;
+            // Edge rim light
+            float rim = pow(1.0 - max(N3.z, 0.0), 4.0) * 0.4;
 
-            // 6. Solid / Frosted Mode
-            float3 frosted = mix(blur, uClockTint, 0.3 + uTintStrength);
-            frosted += float3(1.0) * exp(-abs(signedDistance) / 5.0) * 0.2;
+            glass += float3(1.0) * spec * 1.2;
+            glass += float3(0.9, 0.95, 1.0) * broadSpec;
+            glass += float3(1.0) * rim;
+
+            // 5. Solid / Frosted Mode (Simple blur)
+            float3 frosted = mix(bg, uClockTint, 0.3 + uTintStrength);
+            frosted += float3(1.0) * spec * 0.2;
 
             float3 finalColor = mix(glass, frosted, solidMode);
 
-            float alpha = clamp(coverage * (1.0 + rim * 0.2), 0.0, 1.0);
+            float alpha = clamp(coverage, 0.0, 1.0);
             return half4(finalColor * alpha, alpha);
         }
     """.trimIndent()
