@@ -114,7 +114,9 @@ class LiquidWallpaperRenderer(
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
-            float d = max(-signedDistance, 0.0);
+            
+            // THE FIX: Inside is positive in your original code
+            float d = max(signedDistance, 0.0); 
 
             // 2. Gradient (Normal Map)
             float2 stepSize = float2(6.0, 6.0) * uSdfScale;
@@ -144,17 +146,17 @@ class LiquidWallpaperRenderer(
             blur += uWallpaper.eval(clamp(p + warp + float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
             blur += uWallpaper.eval(clamp(p + warp - float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
 
-            // 5. Milkiness (This ensures it is NEVER faint)
+            // 5. Milkiness (Subtle silver fill)
             float3 milkColor = float3(0.85, 0.9, 0.95);
-            float3 glass = mix(blur, milkColor, 0.35);
+            float3 glass = mix(blur, milkColor, 0.25);
 
-            // 6. Thick Inner Shadow (Gives 3D volume)
-            float innerShadow = smoothstep(0.0, 20.0, d);
-            glass *= mix(0.65, 1.0, innerShadow);
+            // 6. Inner Shadow (Darker at the very edge, bright in the center)
+            float innerShadow = smoothstep(0.0, 25.0, d);
+            glass *= mix(0.6, 1.0, innerShadow);
 
-            // 7. Bright Rim (Guarantees a strong edge)
-            float rim = 1.0 - smoothstep(0.0, 5.0, d);
-            glass += float3(1.0) * rim * 0.8;
+            // 7. Bright Rim (Strong white edge)
+            float rim = exp(-d / 4.0);
+            glass += float3(1.0) * rim * 0.7;
 
             // 8. Solid Mode (Frosted)
             float3 frosted = mix(blur, uClockTint, 0.4 + uTintStrength);
