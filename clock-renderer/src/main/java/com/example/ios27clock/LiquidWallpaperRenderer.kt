@@ -2171,11 +2171,11 @@ class LiquidWallpaperRenderer(
                 1.0
             );
             colour += glassKeyGlintColour *
-                glassKeyGlint * (1.0 - solidMode) * 3.0;
+                glassKeyGlint * (1.0 - solidMode) * 1.5;
             colour += float3(1.0, 1.0, 1.0) *
-                glassFillGlint * (1.0 - solidMode) * 0.85;
+                glassFillGlint * (1.0 - solidMode) * 0.5;
             colour += float3(1.0, 1.0, 1.0) *
-                glassRimLighting * (1.0 - solidMode) * 3.5;
+                glassRimLighting * (1.0 - solidMode) * 1.5;
 
             // Unified secondary bevel reflection: every glyph uses the same
             // height-map normal, curvature gate and light/view half-vector.
@@ -2279,13 +2279,13 @@ class LiquidWallpaperRenderer(
             // their refracted samples. Full mask alpha is required; the glass
             // remains optically clear because its RGB is the warped wallpaper,
             // not a white translucent paint layer.
-            float glassOpacity = 0.72;
+            float glassOpacity = 0.45;
             float solidOpacity = 0.78;
             float bodyOpacity = mix(glassOpacity, solidOpacity, solidMode);
             float alpha = clamp(
                 coverage * (
                     bodyOpacity +
-                    edgeBand * mix(0.25, 0.10, solidMode) +
+                    edgeBand * mix(0.0, 0.10, solidMode) +
                     outerLip * mix(0.035, 0.07, solidMode)
                 ),
                 0.0,
