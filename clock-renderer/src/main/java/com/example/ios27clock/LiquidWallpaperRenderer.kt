@@ -2285,7 +2285,7 @@ class LiquidWallpaperRenderer(
             float alpha = clamp(
                 coverage * (
                     bodyOpacity +
-                    edgeBand * mix(0.0, 0.10, solidMode) +
+                    edgeBand * mix(0.25, 0.10, solidMode) +
                     outerLip * mix(0.035, 0.07, solidMode)
                 ),
                 0.0,
