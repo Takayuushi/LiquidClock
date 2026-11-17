@@ -277,7 +277,7 @@ class LiquidWallpaperRenderer(
             float edgeBand = mix(glassEdge, solidEdge, solidMode);
             float glassLens = smoothstep(-2.0, 6.0, signedDistance) *
                 (1.0 - smoothstep(54.0, 118.0, signedDistance));
-            float glassRim = exp(-abs(signedDistance - 1.15) / 15.0);
+            float glassRim = exp(-abs(signedDistance - 1.15) / 4.0);
             float solidBevel = 1.0 -
                 smoothstep(0.8, 13.0, insideDistance);
             // Model each digit stroke as a rounded glass rod, not a flat
@@ -2171,11 +2171,11 @@ class LiquidWallpaperRenderer(
                 1.0
             );
             colour += glassKeyGlintColour *
-                glassKeyGlint * (1.0 - solidMode) * 2.8;
+                glassKeyGlint * (1.0 - solidMode) * 3.0;
             colour += float3(1.0, 1.0, 1.0) *
-                glassFillGlint * (1.0 - solidMode) * 0.80;
+                glassFillGlint * (1.0 - solidMode) * 0.85;
             colour += float3(1.0, 1.0, 1.0) *
-                glassRimLighting * (1.0 - solidMode) * 2.2;
+                glassRimLighting * (1.0 - solidMode) * 3.5;
 
             // Unified secondary bevel reflection: every glyph uses the same
             // height-map normal, curvature gate and light/view half-vector.
@@ -2285,7 +2285,7 @@ class LiquidWallpaperRenderer(
             float alpha = clamp(
                 coverage * (
                     bodyOpacity +
-                    edgeBand * mix(0.30, 0.10, solidMode) +
+                    edgeBand * mix(0.0, 0.10, solidMode) +
                     outerLip * mix(0.035, 0.07, solidMode)
                 ),
                 0.0,
