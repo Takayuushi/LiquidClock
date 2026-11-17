@@ -116,63 +116,54 @@ class LiquidWallpaperRenderer(
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float d = (sdf - 0.5) * 2.0 * uSdfRange; 
 
-            float e = 10.0 * uSdfScale;
+            // Smooth normal calculation
+            float e = 12.0 * uSdfScale;
             float gx = uGlyphSdf.eval(sdfPoint + float2(e, 0.0)).a - uGlyphSdf.eval(sdfPoint - float2(e, 0.0)).a;
             float gy = uGlyphSdf.eval(sdfPoint + float2(0.0, e)).a - uGlyphSdf.eval(sdfPoint - float2(0.0, e)).a;
             float2 grad = normalize(float2(gx, gy) + float2(0.0001, 0.0001));
 
-            // 2. Build 3D Dome Normal for sharp reflections
-            float bevel = 25.0; 
-            float t = clamp(d / bevel, 0.0, 1.0); // 0 at edge, 1 at center
+            // 2. True Spherical Lens Normal
+            float bevel = 35.0; 
+            float t = clamp(d / bevel, 0.0, 1.0); 
             float z = sqrt(max(0.0, 1.0 - (1.0 - t) * (1.0 - t)));
             float3 N = normalize(float3(grad * (1.0 - t), z));
 
-            // 3. Sample Blurred Background
-            float2 warp = grad * 20.0;
+            // 3. Screen-Space Refraction
+            // Bend the background based on the normal
+            float2 warp = N.xy * 35.0;
             float2 base = p + warp;
-            float3 bg = uWallpaper.eval(clamp(base, float2(0.0), uResolution - 1.0)).rgb;
-            float r = 10.0;
-            bg += uWallpaper.eval(clamp(base + float2(r, 0.0), float2(0.0), uResolution - 1.0)).rgb * 0.5;
-            bg += uWallpaper.eval(clamp(base - float2(r, 0.0), float2(0.0), uResolution - 1.0)).rgb * 0.5;
-            bg += uWallpaper.eval(clamp(base + float2(0.0, r), float2(0.0), uResolution - 1.0)).rgb * 0.5;
-            bg += uWallpaper.eval(clamp(base - float2(0.0, r), float2(0.0), uResolution - 1.0)).rgb * 0.5;
-            bg *= 0.33; // normalize blur
 
-            // 4. The Metallic Chrome Material
-            // Mix the background with a cool silver tint to create the metal base
-            float3 silverTint = float3(0.65, 0.7, 0.8);
-            float3 col = mix(bg, silverTint, 0.45);
+            // Sample background with a 5-tap blur to smooth out the refraction
+            float3 bg = uWallpaper.eval(clamp(base, float2(0.0), uResolution - 1.0)).rgb * 0.4;
+            float r = 8.0;
+            bg += uWallpaper.eval(clamp(base + float2(r, 0.0), float2(0.0), uResolution - 1.0)).rgb * 0.15;
+            bg += uWallpaper.eval(clamp(base - float2(r, 0.0), float2(0.0), uResolution - 1.0)).rgb * 0.15;
+            bg += uWallpaper.eval(clamp(base + float2(0.0, r), float2(0.0), uResolution - 1.0)).rgb * 0.15;
+            bg += uWallpaper.eval(clamp(base - float2(0.0, r), float2(0.0), uResolution - 1.0)).rgb * 0.15;
 
-            // 5. Directional Lighting (Creates the bright top-left shine)
-            float3 L = normalize(float3(-0.6, -0.8, 0.5)); 
+            // 4. Pure Transparent Glass Base
+            float3 col = bg;
+
+            // 5. Fresnel Rim & Specular (The bright white edges)
+            // Sharp rim on the exact edge
+            float fresnel = pow(1.0 - max(N.z, 0.0), 4.0);
+            
+            // Directional specular highlight (top-left)
+            float3 L = normalize(float3(-0.5, -0.8, 0.6));
             float3 H = normalize(L + float3(0.0, 0.0, 1.0));
-            
-            // Broad specular shine on the shoulders
-            float spec = pow(max(dot(N, H), 0.0), 15.0) * 2.0;
-            // Sharp Fresnel rim
-            float fres = pow(1.0 - max(N.z, 0.0), 5.0);
+            float spec = pow(max(dot(N, H), 0.0), 30.0) * 1.5;
 
-            col += silverTint * spec * 0.8;
-            col += float3(1.0) * spec * 1.2;
-            col += float3(0.9, 0.95, 1.0) * fres * 0.8;
+            // Add the pure white highlights to the transparent glass
+            col += float3(0.9, 0.95, 1.0) * fresnel * 0.6;
+            col += float3(1.0) * spec;
 
-            // 6. The "Apple" Edge Treatment (Hard Rim + Inner Shadow)
-            // Sharp white rim on the very edge
-            float edgeRim = smoothstep(2.5, 0.0, d); 
-            
-            // Dark shadow just inside the rim to create thickness
-            float innerShadow = smoothstep(18.0, 2.5, d); 
-            col *= mix(0.2, 1.0, innerShadow); 
-
-            // Apply the bright rim
-            col = mix(col, float3(1.0), edgeRim * 0.8);
-
-            // 7. Solid Mode Override
+            // 6. Solid Mode (Frosted)
             if (solidMode > 0.5) {
-                col = mix(bg, uClockTint, 0.5);
-                col *= mix(0.4, 1.0, smoothstep(10.0, 0.0, d));
+                col = mix(bg, uClockTint, 0.5 + uTintStrength);
+                col += float3(1.0) * fresnel * 0.4;
             }
 
+            // Tint
             col = mix(col, uClockTint, uTintStrength);
             col += float3(colCoverage) * 0.0;
 
