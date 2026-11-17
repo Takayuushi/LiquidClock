@@ -110,9 +110,13 @@ class LiquidWallpaperRenderer(
             
             float solidMode = clamp(uFrosted, 0.0, 1.0);
             
-            // 1. Calculate a wide, smooth SDF Normal (prevents pixel jaggedness)
+            // 1. Calculate SDF and Smooth Normal
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
-            float2 stepSize = float2(16.0, 16.0) * uSdfScale;
+            float sdf = uGlyphSdf.eval(sdfPoint).a;
+            float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
+            float d = max(signedDistance, 0.0); // Distance inside the glass
+
+            float2 stepSize = float2(14.0, 14.0) * uSdfScale; // Wide step for smoothness
             float sdfL = uGlyphSdf.eval(sdfPoint - float2(stepSize.x, 0.0)).a;
             float sdfR = uGlyphSdf.eval(sdfPoint + float2(stepSize.x, 0.0)).a;
             float sdfT = uGlyphSdf.eval(sdfPoint - float2(0.0, stepSize.y)).a;
@@ -120,16 +124,16 @@ class LiquidWallpaperRenderer(
             float2 grad = float2(sdfR - sdfL, sdfB - sdfT);
             float gradLen = length(grad);
             float2 normal2D = gradLen > 0.001 ? -normalize(grad) : float2(0.0);
-            
-            float sdf = uGlyphSdf.eval(sdfPoint).a;
-            float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
-            float d = max(signedDistance, 0.0);
 
-            // 2. Heavy Background Blur (The "Foggy" Apple Base)
-            // We sample a 9-tap blur of the background. Because it's blurred, 
-            // refracting it will NOT cause jagged shattering.
+            // 2. Screen-Space Refraction (Molten Bend)
+            float edgeDist = clamp(abs(signedDistance) / 25.0, 0.0, 1.0);
+            float smoothEdge = smoothstep(0.0, 1.0, edgeDist);
+            float warpStrength = 28.0 * (1.0 - solidMode);
+            float2 warp = normal2D * warpStrength * (1.0 - smoothEdge);
+
+            // 3. Massive Heavy Blur (The "Foggy Glass Body")
             float3 blur = uWallpaper.eval(p).rgb * 0.2;
-            float r = 25.0; // Blur radius
+            float r = 45.0; // Massive blur radius for volumetric scattering
             blur += uWallpaper.eval(clamp(p + float2(r, 0.0), float2(0.0), uResolution)).rgb * 0.1;
             blur += uWallpaper.eval(clamp(p - float2(r, 0.0), float2(0.0), uResolution)).rgb * 0.1;
             blur += uWallpaper.eval(clamp(p + float2(0.0, r), float2(0.0), uResolution)).rgb * 0.1;
@@ -139,37 +143,36 @@ class LiquidWallpaperRenderer(
             blur += uWallpaper.eval(clamp(p + float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
             blur += uWallpaper.eval(clamp(p - float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
 
-            // 3. Screen-Space Refraction (Warp the blurred background)
-            // Stronger at the edges, zero in the center.
-            float edgeDist = clamp(abs(signedDistance) / 30.0, 0.0, 1.0); 
-            float smoothEdge = smoothstep(0.0, 1.0, edgeDist);
-            float warpStrength = 35.0 * (1.0 - solidMode);
-            float2 warp = normal2D * warpStrength * (1.0 - smoothEdge);
-            
-            // Sample the sharp background using the warp, but mix it with the heavy blur
+            // 4. Sharp Refraction (The crisp streaks)
             float2 samplePoint = clamp(p + warp, float2(0.0), uResolution);
             float3 sharpBg = uWallpaper.eval(samplePoint).rgb;
-            
-            // The Apple secret: 70% blurred base, 30% sharp refraction
-            float3 bg = mix(blur, sharpBg, 0.30);
 
-            // 4. Chrome Silver Fill (Makes it look solid, not like a window)
+            // 5. The Molten Blend
+            // Mix the heavy blur with the sharp streaks. 70% blur creates that foggy body.
+            float3 glass = mix(blur, sharpBg, 0.35);
+
+            // Add the "molten" color scattering: boost the saturation of the blurred background
+            // so the orange and blue bleed into the glass.
+            float luma = dot(glass, float3(0.2126, 0.7152, 0.0722));
+            float3 saturatedGlass = mix(float3(luma), glass, 1.8); // Boost color saturation
+            
+            // Add a milky/silver base to the glass body
             float3 milk = float3(0.85, 0.88, 0.92);
-            bg = mix(bg, milk, 0.25);
+            glass = mix(saturatedGlass, milk, 0.20);
 
-            // 5. Thick White Rim & Specular Glints
-            // A strong, smooth rim around the edge
-            float rim = exp(-abs(signedDistance) / 4.0) * 0.8;
+            // 6. Soft Glowing Rim & Specular
+            // A soft, thick rim instead of a sharp line
+            float rim = exp(-d / 5.0) * 0.6;
             
-            // A bright specular highlight on the top-left edge
+            // Bright specular highlight on the top-left
             float3 N3 = normalize(float3(normal2D, 1.0));
             float3 L = normalize(float3(-0.5, -0.8, 0.8));
-            float spec = pow(max(dot(N3, L), 0.0), 20.0) * 1.5;
+            float spec = pow(max(dot(N3, L), 0.0), 15.0) * 1.2;
 
-            float3 glass = bg + float3(1.0) * rim + float3(1.0) * spec;
+            glass += float3(1.0) * rim + float3(1.0) * spec;
 
-            // 6. Solid Mode (Frosted)
-            float3 frosted = mix(blur, uClockTint, 0.5 + uTintStrength);
+            // 7. Solid Mode (Frosted)
+            float3 frosted = mix(blur, uClockTint, 0.4 + uTintStrength);
             frosted += float3(1.0) * rim * 0.4;
 
             float3 finalColor = mix(glass, frosted, solidMode);
