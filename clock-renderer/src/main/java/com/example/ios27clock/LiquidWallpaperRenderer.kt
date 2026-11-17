@@ -87,16 +87,22 @@ class LiquidWallpaperRenderer(
 
         private val AGSL = """
         uniform shader uWallpaper;
+        uniform shader uReflectionEnvironment;
         uniform shader uGlyphMask;
+        uniform shader uColonMask;
         uniform shader uGlyphSdf;
         uniform float2 uResolution;
+        uniform float2 uClockCenter;
         uniform float2 uSdfOrigin;
+        uniform float2 uColonOrigin;
         uniform float uSdfScale;
+        uniform float2 uTilt;
         uniform float uSdfRange;
         uniform float uFrosted;
         uniform float uTintStrength;
-        uniform float3 uClockTint;
+        uniform float uTime;
         uniform float3 uAccentColor;
+        uniform float3 uClockTint;
 
         half4 main(float2 p) {
             float coverage = uGlyphMask.eval(p).a;
@@ -109,7 +115,6 @@ class LiquidWallpaperRenderer(
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
             
-            // Smooth normal calculation
             float2 stepSize = float2(6.0, 6.0) * uSdfScale;
             float sdfL = uGlyphSdf.eval(sdfPoint - float2(stepSize.x, 0.0)).a;
             float sdfR = uGlyphSdf.eval(sdfPoint + float2(stepSize.x, 0.0)).a;
@@ -120,7 +125,6 @@ class LiquidWallpaperRenderer(
             float2 normal = gradLen > 0.001 ? -grad / gradLen : float2(0.0);
 
             // 2. Screen-Space Refraction (Lens Effect)
-            // Stronger near the edges, zero in the center.
             float edgeDist = clamp(abs(signedDistance) / 20.0, 0.0, 1.0);
             float2 warp = normal * edgeDist * 25.0;
             float2 samplePoint = clamp(p + warp, float2(0.0), uResolution);
@@ -130,7 +134,6 @@ class LiquidWallpaperRenderer(
             float radius = 12.0;
             float3 blur = center * 0.2;
             
-            // FIXED: Changed 0.0 to float2(0.0) in all clamps!
             blur += uWallpaper.eval(clamp(samplePoint + float2(radius, 0.0), float2(0.0), uResolution)).rgb * 0.1;
             blur += uWallpaper.eval(clamp(samplePoint - float2(radius, 0.0), float2(0.0), uResolution)).rgb * 0.1;
             blur += uWallpaper.eval(clamp(samplePoint + float2(0.0, radius), float2(0.0), uResolution)).rgb * 0.1;
