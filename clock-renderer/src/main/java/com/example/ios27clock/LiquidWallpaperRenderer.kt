@@ -2279,7 +2279,7 @@ class LiquidWallpaperRenderer(
             // their refracted samples. Full mask alpha is required; the glass
             // remains optically clear because its RGB is the warped wallpaper,
             // not a white translucent paint layer.
-            float glassOpacity = 1.0;
+            float glassOpacity = 0.72;
             float solidOpacity = 0.78;
             float bodyOpacity = mix(glassOpacity, solidOpacity, solidMode);
             float alpha = clamp(
