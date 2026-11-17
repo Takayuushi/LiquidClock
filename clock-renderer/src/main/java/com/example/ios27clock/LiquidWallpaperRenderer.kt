@@ -110,61 +110,96 @@ class LiquidWallpaperRenderer(
             
             float solidMode = clamp(uFrosted, 0.0, 1.0);
             
-            // 1. SDF and Distance
+            // 1. SDF & Distance
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
             float sdf = uGlyphSdf.eval(sdfPoint).a;
             float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
+            float d = max(signedDistance, 0.0);
+
+            // 2. Original SDF Gradient
+            float2 sampleStep = float2(4.25, 4.25) * uSdfScale;
+            float sdfLeft = uGlyphSdf.eval(sdfPoint - float2(sampleStep.x, 0.0)).a;
+            float sdfRight = uGlyphSdf.eval(sdfPoint + float2(sampleStep.x, 0.0)).a;
+            float sdfTop = uGlyphSdf.eval(sdfPoint - float2(0.0, sampleStep.y)).a;
+            float sdfBottom = uGlyphSdf.eval(sdfPoint + float2(0.0, sampleStep.y)).a;
             
-            // THE FIX: Inside is positive in your original code
-            float d = max(signedDistance, 0.0); 
-
-            // 2. Gradient (Normal Map)
-            float2 stepSize = float2(6.0, 6.0) * uSdfScale;
-            float sdfL = uGlyphSdf.eval(sdfPoint - float2(stepSize.x, 0.0)).a;
-            float sdfR = uGlyphSdf.eval(sdfPoint + float2(stepSize.x, 0.0)).a;
-            float sdfT = uGlyphSdf.eval(sdfPoint - float2(0.0, stepSize.y)).a;
-            float sdfB = uGlyphSdf.eval(sdfPoint + float2(0.0, stepSize.y)).a;
-            float2 grad = float2(sdfR - sdfL, sdfB - sdfT);
-            float gradLen = length(grad);
-            float2 normal2D = gradLen > 0.001 ? -normalize(grad) : float2(0.0);
-
-            // 3. Refraction (Warp)
-            float edgeDist = clamp(abs(signedDistance) / 30.0, 0.0, 1.0);
-            float smoothEdge = smoothstep(0.0, 1.0, edgeDist);
-            float warpStrength = 40.0 * (1.0 - solidMode);
-            float2 warp = normal2D * warpStrength * (1.0 - smoothEdge);
-
-            // 4. Background Blur (9-tap to get that foggy look)
-            float3 blur = uWallpaper.eval(clamp(p + warp, float2(0.0), uResolution)).rgb * 0.2;
-            float r = 15.0;
-            blur += uWallpaper.eval(clamp(p + warp + float2(r, 0.0), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp - float2(r, 0.0), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp + float2(0.0, r), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp - float2(0.0, r), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp + float2(r*0.7, r*0.7), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp - float2(r*0.7, r*0.7), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp + float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
-            blur += uWallpaper.eval(clamp(p + warp - float2(r*0.7, -r*0.7), float2(0.0), uResolution)).rgb * 0.1;
-
-            // 5. Milkiness (Subtle silver fill)
-            float3 milkColor = float3(0.85, 0.9, 0.95);
-            float3 glass = mix(blur, milkColor, 0.25);
-
-            // 6. Inner Shadow (Darker at the very edge, bright in the center)
-            float innerShadow = smoothstep(0.0, 25.0, d);
-            glass *= mix(0.6, 1.0, innerShadow);
-
-            // 7. Bright Rim (Strong white edge)
-            float rim = exp(-d / 4.0);
-            glass += float3(1.0) * rim * 0.7;
-
-            // 8. Solid Mode (Frosted)
-            float3 frosted = mix(blur, uClockTint, 0.4 + uTintStrength);
-            frosted += float3(1.0) * rim * 0.4;
-
-            float3 finalColor = mix(glass, frosted, solidMode);
-
-            return half4(finalColor * coverage, coverage);
+            // 3. Original Height Map (Dome)
+            float glassDigitRadius = 20.0;
+            float profileDistance = clamp(d, 0.0, glassDigitRadius);
+            float glassHeight = sqrt(max(2.0 * glassDigitRadius * profileDistance - profileDistance * profileDistance, 0.0));
+            
+            float distanceLeft = max((sdfLeft - 0.5) * 2.0 * uSdfRange, 0.0);
+            float distanceRight = max((sdfRight - 0.5) * 2.0 * uSdfRange, 0.0);
+            float distanceTop = max((sdfTop - 0.5) * 2.0 * uSdfRange, 0.0);
+            float distanceBottom = max((sdfBottom - 0.5) * 2.0 * uSdfRange, 0.0);
+            
+            float heightLeftDistance = min(distanceLeft, glassDigitRadius);
+            float heightRightDistance = min(distanceRight, glassDigitRadius);
+            float heightTopDistance = min(distanceTop, glassDigitRadius);
+            float heightBottomDistance = min(distanceBottom, glassDigitRadius);
+            
+            float heightLeft = sqrt(max(2.0 * glassDigitRadius * heightLeftDistance - heightLeftDistance * heightLeftDistance, 0.0));
+            float heightRight = sqrt(max(2.0 * glassDigitRadius * heightRightDistance - heightRightDistance * heightRightDistance, 0.0));
+            float heightTop = sqrt(max(2.0 * glassDigitRadius * heightTopDistance - heightTopDistance * heightTopDistance, 0.0));
+            float heightBottom = sqrt(max(2.0 * glassDigitRadius * heightBottomDistance - heightBottomDistance * heightBottomDistance, 0.0));
+            
+            float heightGradientX = (heightRight - heightLeft) / 8.5;
+            float heightGradientY = (heightBottom - heightTop) / 8.5;
+            float3 glassSurfaceNormal = normalize(float3(-heightGradientX, -heightGradientY, 1.0));
+            
+            // 4. Original Lighting
+            float3 keyLight3D = normalize(float3(-0.48, -0.66, 0.58));
+            float3 fillLight3D = normalize(float3(0.62, 0.46, 0.64));
+            float3 viewDirection3D = float3(0.0, 0.0, 1.0);
+            float3 keyHalfVector = normalize(keyLight3D + viewDirection3D);
+            float3 fillHalfVector = normalize(fillLight3D + viewDirection3D);
+            
+            float keyDiffuse3D = max(dot(glassSurfaceNormal, keyLight3D), 0.0);
+            float fillDiffuse3D = max(dot(glassSurfaceNormal, fillLight3D), 0.0);
+            
+            float glassKeyGlint = pow(max(dot(glassSurfaceNormal, keyHalfVector), 0.0), 42.0) * 1.5;
+            float glassFillGlint = pow(max(dot(glassSurfaceNormal, fillHalfVector), 0.0), 30.0) * 0.8;
+            
+            // 5. Original Refraction (No Shattering!)
+            const float GLASS_IOR = 1.52;
+            const float GLASS_THICKNESS_PX = 46.0;
+            float eta = 1.0 / GLASS_IOR;
+            float cosIncident = clamp(glassSurfaceNormal.z, 0.0, 1.0);
+            float refractK = max(1.0 - eta * eta * (1.0 - cosIncident * cosIncident), 0.0);
+            float refractFactor = eta * cosIncident - sqrt(refractK);
+            float3 refractedRay = float3(0.0, 0.0, -eta) + glassSurfaceNormal * refractFactor;
+            
+            float glassEdgePull = mix(1.0, 1.5, smoothstep(0.10, 0.55, length(float2(heightGradientX, heightGradientY))));
+            float2 glassRefractionOffset = refractedRay.xy * GLASS_THICKNESS_PX * glassEdgePull;
+            float2 samplePoint = clamp(p + glassRefractionOffset, float2(0.0), uResolution);
+            
+            // 6. Sample Background
+            float3 center = uWallpaper.eval(samplePoint).rgb;
+            
+            // 7. Face Lighting (Brightens the glass so it's not faint)
+            float glassFaceLighting = 1.15 + keyDiffuse3D * 0.35 + fillDiffuse3D * 0.20;
+            float3 colour = center * glassFaceLighting;
+            
+            // 8. Milky Fill & Edge Rim
+            float3 milk = float3(0.85, 0.9, 0.95);
+            colour = mix(colour, milk, 0.15 * (1.0 - smoothstep(0.0, 10.0, d)));
+            
+            colour += float3(1.0) * glassKeyGlint;
+            colour += float3(0.68, 0.82, 1.0) * glassFillGlint;
+            
+            float glassRim = exp(-abs(signedDistance - 1.15) / 6.2);
+            float glassRimLighting = glassRim * pow(max(dot(glassSurfaceNormal, keyLight3D), 0.0), 1.35);
+            colour += float3(0.96, 0.98, 1.0) * glassRimLighting * 0.5;
+            
+            // 9. Solid Mode (Frosted)
+            float3 frosted = mix(center, uClockTint, 0.4 + uTintStrength);
+            float solidRim = exp(-abs(signedDistance - 2.5) / 4.6) * pow(max(dot(glassSurfaceNormal.xy, keyLight3D.xy), 0.0), 1.45);
+            frosted += float3(1.0) * solidRim * 0.4;
+            
+            float3 finalColor = mix(colour, frosted, solidMode);
+            float alpha = clamp(coverage * 1.5, 0.0, 1.0);
+            
+            return half4(finalColor * alpha, alpha);
         }
     """.trimIndent()
     }
