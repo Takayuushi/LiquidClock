@@ -294,7 +294,7 @@ class LiquidWallpaperRenderer(
             // Keep the Glass digit silhouette at the original cap width.
             // The previous 24px cap made the bright shoulder look too broad,
             // especially around the SF Pro 4 and 7.
-            float glassDigitRadius = 20.0;
+            float glassDigitRadius = 55.0;
             float glassProfileRadius = mix(
                 glassDigitRadius,
                 3.2,
@@ -429,8 +429,8 @@ class LiquidWallpaperRenderer(
 
             // Snell refraction through the convex height-map surface.
             // Incoming view ray travels toward the glyph; eta is air/glass.
-            const float GLASS_IOR = 1.52;
-            const float GLASS_THICKNESS_PX = 46.0;
+            const float GLASS_IOR = 1.15;
+            const float GLASS_THICKNESS_PX = 18.0;
             float eta = 1.0 / GLASS_IOR;
             float cosIncident = clamp(glassSurfaceNormal.z, 0.0, 1.0);
             float refractK = max(
@@ -1898,7 +1898,7 @@ class LiquidWallpaperRenderer(
             // Lift the transmissive face so wallpaper colour remains vivid
             // through the glyph instead of reading as a dark cut-out. This
             // multiplier is blended out completely for Solid/Frosted.
-            float glassFaceLighting = 0.82 +
+            float glassFaceLighting = 1.15 +
                 keyDiffuse3D * 0.30 +
                 fillDiffuse3D * 0.16;
             // Preserve the full diffuse lift in dark glass, where it prevents
@@ -2175,7 +2175,7 @@ class LiquidWallpaperRenderer(
             colour += float3(0.68, 0.82, 1.0) *
                 glassFillGlint * (1.0 - solidMode) * 0.88;
             colour += float3(0.96, 0.98, 1.0) *
-                glassRimLighting * (1.0 - solidMode) * 0.20;
+                glassRimLighting * (1.0 - solidMode) * 0.08;
 
             // Unified secondary bevel reflection: every glyph uses the same
             // height-map normal, curvature gate and light/view half-vector.
@@ -2240,7 +2240,7 @@ class LiquidWallpaperRenderer(
                 0.62,
                 glassVolumeRegion
             );
-            float ambientScatter = 0.42 *
+            float ambientScatter = 0.65 *
                 ambientDarkness *
                 ambientInteriorMask *
                 (1.0 - solidMode);
