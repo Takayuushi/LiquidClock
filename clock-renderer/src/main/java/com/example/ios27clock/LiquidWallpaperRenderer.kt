@@ -87,65 +87,91 @@ class LiquidWallpaperRenderer(
 
         private val AGSL = """
         uniform shader uWallpaper;
+        uniform shader uReflectionEnvironment;
+        uniform shader uGlyphMask;
+        uniform shader uColonMask;
         uniform shader uGlyphSdf;
         uniform float2 uResolution;
+        uniform float2 uClockCenter;
         uniform float2 uSdfOrigin;
+        uniform float2 uColonOrigin;
         uniform float uSdfScale;
+        uniform float2 uTilt;
         uniform float uSdfRange;
         uniform float uFrosted;
         uniform float uTintStrength;
+        uniform float uTime;
+        uniform float3 uAccentColor;
         uniform float3 uClockTint;
 
         half4 main(float2 p) {
-            // 1. Sample the glyph SDF
+            float coverage = uGlyphMask.eval(p).a;
+            if (coverage < 0.002) return half4(0.0);
+            
+            float solidMode = clamp(uFrosted, 0.0, 1.0);
+            
+            // Use uColonMask so the compiler doesn't optimize it out
+            float colCoverage = uColonMask.eval(p - uColonOrigin).a;
+            
+            // Use uReflectionEnvironment so the compiler doesn't optimize it out
+            float3 env = uReflectionEnvironment.eval(p).rgb;
+            
+            // 1. SDF Sample
             float2 sdfPoint = (p - uSdfOrigin) * uSdfScale;
             float sdf = uGlyphSdf.eval(sdfPoint).a;
-            float signedDistance = (sdf - 0.5) * 2.0 * uSdfRange;
-            float d = signedDistance; // Use signed distance directly
+            float d = (sdf - 0.5) * 2.0 * uSdfRange; 
 
-            // 2. Surface gradient (points toward the nearest edge)
-            float e = 1.0;
+            // 2. Gradient
+            float e = 10.0 * uSdfScale; 
             float gx = uGlyphSdf.eval(sdfPoint + float2(e, 0.0)).a - uGlyphSdf.eval(sdfPoint - float2(e, 0.0)).a;
             float gy = uGlyphSdf.eval(sdfPoint + float2(0.0, e)).a - uGlyphSdf.eval(sdfPoint - float2(0.0, e)).a;
             float2 grad = normalize(float2(gx, gy) + float2(0.0001, 0.0001));
 
-            // 3. Beveled height field (from himanshu-lal4)
-            float bevel = 15.0; 
+            // 3. Prismal Bevel
+            float bevel = 25.0; 
             float t = clamp(-d / bevel, 0.0, 1.0);
             float slope = (1.0 - t) * (1.0 - t);
             float3 N = normalize(float3(grad * slope, 1.0 - 0.6 * slope));
 
             // 4. Refraction & Chromatic Dispersion
             float iRefract = 1.0;
-            float2 off = N.xy * bevel * 1.5 * iRefract;
-            float2 ca = N.xy * slope * 3.0 * iRefract;
+            float2 off = N.xy * bevel * 1.2 * iRefract;
+            float2 ca = N.xy * slope * 4.0 * iRefract;
             float2 base = p + off;
 
-            half3 src;
+            float3 src;
             src.r = uWallpaper.eval(clamp(base + ca, float2(0.0), uResolution - 1.0)).r;
             src.g = uWallpaper.eval(clamp(base, float2(0.0), uResolution - 1.0)).g;
             src.b = uWallpaper.eval(clamp(base - ca, float2(0.0), uResolution - 1.0)).b;
 
-            // 5. Frosted material (saturation + lift)
-            float luma = dot(src, half3(0.2126, 0.7152, 0.0722));
-            half3 col = half3(luma) + (src - half3(luma)) * 1.2; // saturation
-            col = mix(col, half3(1.0), 0.05); // lift
+            // 5. Frosted / Milky
+            float luma = dot(src, float3(0.2126, 0.7152, 0.0722));
+            float3 col = float3(luma) + (src - float3(luma)) * 1.2;
+            col = mix(col, float3(0.85, 0.9, 0.95), 0.25);
 
-            // 6. Tint
+            // 6. Lighting (Fresnel & Specular)
+            float fres = pow(1.0 - max(N.z, 0.0), 4.0);
+            float3 L = normalize(float3(-0.5, -0.8, 0.6));
+            float spec = pow(max(dot(N, L), 0.0), 40.0);
+            
+            // Add the environment reflection to the specular
+            col += env * spec * 0.5;
+            col += float3(1.0) * spec * 1.5;
+            col += float3(0.9, 0.95, 1.0) * fres * 0.7;
+
+            // 7. Tint
             col = mix(col, uClockTint, uTintStrength);
 
-            // 7. Fresnel rim + specular
-            float fres = pow(1.0 - N.z, 3.0);
-            float3 L = normalize(float3(-0.4, -0.7, 0.8));
-            float spec = pow(clamp(dot(N, L), 0.0, 1.0), 6.0);
-            col = col + half3(fres * 0.5 + spec) * 0.8;
-
-            // 8. Solid Mode (Frosted override)
-            if (uFrosted > 0.5) {
+            // 8. Solid Mode
+            if (solidMode > 0.5) {
                 col = mix(src, uClockTint, 0.4);
+                col += float3(1.0) * fres * 0.5;
             }
 
-            float alpha = step(0.5, sdf); // inside the glyph
+            // Ensure colon coverage is applied (prevents compiler optimization)
+            col += float3(colCoverage) * 0.0;
+
+            float alpha = clamp(coverage * 1.5, 0.0, 1.0);
             return half4(col * alpha, alpha);
         }
     """.trimIndent()
