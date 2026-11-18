@@ -1864,20 +1864,81 @@ class LiquidWallpaperRenderer(
                 0.0,
                 1.0
             );
-            // Strong surface reflection for chrome glass appearance
-            // Environment reflection blended into glass face, gated by Fresnel
-            // Stronger at edges/grazing angles, weaker face-on
-            // Gives glyphs the thick chrome body of iOS 27 - not just clear refraction
-            float glassSurfaceReflectionAmount = mix(0.30, 0.90, glassVolumeFresnel) * (1.0 - solidMode);
-            float3 glassSurfaceReflection = environmentReflection * glassSurfaceReflectionAmount;
-            glassFace = clamp(glassFace + glassSurfaceReflection, 0.0, 1.0);
-            // Chrome glass body - intrinsic metallic substance that gives
-            // glyphs thick glass body like iOS 27. Applied as screen blend
-            // (adds light, preserves wallpaper colors underneath) gated by
-            // glass volume so thin edges stay transparent.
-            float3 chromeBody = float3(0.90, 0.92, 0.96);
-            float glassBodyAmount = glassVolumeRegion * 0.30 * (1.0 - solidMode);
-            glassFace = clamp(1.0 - (1.0 - glassFace) * (1.0 - chromeBody * glassBodyAmount), 0.0, 1.0);
+            // ── Antigravity fix: studio softbox chrome body ───────────────────
+            // Replace the equirectangular-mapped wallpaper reflection (which
+            // samples spatially unrelated wallpaper pixels based on atan() and
+            // produces inconsistent colour casts) with a physically grounded
+            // virtual studio lighting model.
+            //
+            // Three-light setup matching iOS 27's appearance:
+            //   KEY  : large soft box from upper-left  (cool silver-white)
+            //   FILL : lower-right counter-light       (warm silver)
+            //   RIM  : tight back-edge catch light     (pure white, Fresnel only)
+            //
+            // All three are Glass-only. The glass surface normal drives every
+            // term — no screen-space coordinates, no digit identity, no fixed
+            // position offsets. Solid/Frosted is completely unaffected.
+
+            // Key softbox: upper-left area light using the existing key 3D normal.
+            // pow(x, 1.4) gives a wide, soft lobe — large area light, not a spot.
+            float3 keyLight3DSoftbox = normalize(float3(-0.52, -0.74, 0.42));
+            float softboxKeyDot = max(dot(glassSurfaceNormal, keyLight3DSoftbox), 0.0);
+            float softboxKeyLobe = pow(softboxKeyDot, 1.4);
+            // Gate on glass volume so edges have more chrome than flat face center.
+            // This creates the classic glass-rod shoulder highlight.
+            float softboxKeyShoulder = mix(softboxKeyLobe, softboxKeyLobe * glassProfileSlope, 0.55);
+            float3 softboxKeyColour = float3(0.92, 0.94, 0.98); // cool silver
+            float softboxKeyStrength = 0.52 * (1.0 - solidMode);
+            float3 softboxKeyContrib = softboxKeyColour * softboxKeyShoulder * softboxKeyStrength;
+
+            // Fill light: warm lower-right counter, narrower lobe.
+            float3 fillLight3DSoftbox = normalize(float3(0.60, 0.58, 0.55));
+            float softboxFillDot = max(dot(glassSurfaceNormal, fillLight3DSoftbox), 0.0);
+            float softboxFillLobe = pow(softboxFillDot, 2.2);
+            float3 softboxFillColour = float3(0.88, 0.86, 0.80); // warm silver
+            float softboxFillStrength = 0.22 * (1.0 - solidMode);
+            float3 softboxFillContrib = softboxFillColour * softboxFillLobe * softboxFillStrength;
+
+            // Rim: tight Fresnel-only white catch light at the very edge.
+            // glassVolumeFresnel is already largest at grazing angles,
+            // so we don't need a separate dot product — just gate more sharply.
+            float rimFresnel = pow(glassVolumeFresnel, 1.8);
+            float3 rimContrib = float3(0.95, 0.97, 1.0) * rimFresnel * 0.38 * (1.0 - solidMode);
+
+            // Composite: screen-blend all three studio lights into glassFace so
+            // wallpaper colours underneath are preserved and lifted, not washed.
+            float3 studioLight = clamp(softboxKeyContrib + softboxFillContrib + rimContrib, 0.0, 1.0);
+            // Protect bright wallpaper areas from becoming overexposed:
+            // attenuate studio contribution where glassFace is already luminous.
+            float glassFaceLumaForStudio = dot(glassFace, float3(0.2126, 0.7152, 0.0722));
+            float studioProtection = 1.0 - smoothstep(0.52, 0.86, glassFaceLumaForStudio);
+            studioLight *= studioProtection;
+            glassFace = clamp(1.0 - (1.0 - glassFace) * (1.0 - studioLight), 0.0, 1.0);
+
+            // ── Chroma amplification: "jewel" lensing ────────────────────────
+            // The iOS glass concentrates and saturates wallpaper colours inside
+            // the stroke volume — it doesn't just transmit them. We replicate
+            // this by boosting chroma proportional to the glass volume depth,
+            // then screen-blending a luminance lift. This is strictly local to
+            // the already-computed glassFace RGB so it cannot introduce new
+            // spatial patterns or wallpaper-identity information.
+            float glassFaceLumaChroma = dot(glassFace, float3(0.2126, 0.7152, 0.0722));
+            float3 glassFaceChromaOnly = glassFace - float3(glassFaceLumaChroma);
+            // Amplify chroma where the glass is thick (glassVolumeRegion) and
+            // over dark wallpaper (where the effect is most visible and needed).
+            float chromaBoostDepth = glassVolumeRegion * (1.0 - solidMode);
+            float chromaBoostDarkness = 1.0 - smoothstep(0.28, 0.72, glassFaceLumaChroma);
+            float chromaBoost = 1.0 + 0.55 * chromaBoostDepth * chromaBoostDarkness;
+            float3 chromaAmplified = clamp(
+                float3(glassFaceLumaChroma) + glassFaceChromaOnly * chromaBoost,
+                0.0, 1.0
+            );
+            // Also apply a gentle luminance lift via screen blend so dark glass
+            // over black wallpaper reads as a lit glass body, not a hole.
+            float3 lensLift = float3(0.18, 0.20, 0.26) * chromaBoostDepth * chromaBoostDarkness * 0.60;
+            chromaAmplified = clamp(1.0 - (1.0 - chromaAmplified) * (1.0 - lensLift), 0.0, 1.0);
+            glassFace = mix(glassFace, chromaAmplified, (1.0 - solidMode));
+            // ─────────────────────────────────────────────────────────────────
             float innerGlassTint = smoothstep(0.0, 12.0, insideDistance) *
                 (1.0 - smoothstep(26.0, 64.0, insideDistance));
             glassFace = mix(
@@ -2176,12 +2237,17 @@ class LiquidWallpaperRenderer(
                 0.0,
                 1.0
             );
+            // Key glint pulled back from 1.8: studio softbox already provides
+            // the broad highlight; the tight glint should accent, not dominate.
             colour += glassKeyGlintColour *
-                glassKeyGlint * (1.0 - solidMode) * 1.8;
+                glassKeyGlint * (1.0 - solidMode) * 1.22;
             colour += float3(0.68, 0.82, 1.0) *
                 glassFillGlint * (1.0 - solidMode) * 0.88;
+            // Rim lighting: widen already done (10.0 falloff). Pull strength
+            // back slightly — studio softbox rim handles wide coverage, this
+            // tight rim stays as a crisp edge catch on curved shoulders only.
             colour += float3(0.96, 0.98, 1.0) *
-                glassRimLighting * (1.0 - solidMode) * 0.85;
+                glassRimLighting * (1.0 - solidMode) * 0.55;
 
             // Unified secondary bevel reflection: every glyph uses the same
             // height-map normal, curvature gate and light/view half-vector.
