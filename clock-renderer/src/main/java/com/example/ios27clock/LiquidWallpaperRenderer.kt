@@ -1879,31 +1879,34 @@ class LiquidWallpaperRenderer(
             // term — no screen-space coordinates, no digit identity, no fixed
             // position offsets. Solid/Frosted is completely unaffected.
 
-            // Key softbox: upper-left area light using the existing key 3D normal.
-            // pow(x, 1.4) gives a wide, soft lobe — large area light, not a spot.
+            // Key softbox: upper-left area light — SHOULDER ONLY.
+            // Strictly gate to glassProfileSlope so the flat face centre stays
+            // transparent/refractive and only the curved rod shoulder gets chrome.
+            // This matches iOS where the chrome lives on the bevel, not the face.
             float3 keyLight3DSoftbox = normalize(float3(-0.52, -0.74, 0.42));
             float softboxKeyDot = max(dot(glassSurfaceNormal, keyLight3DSoftbox), 0.0);
-            float softboxKeyLobe = pow(softboxKeyDot, 1.4);
-            // Gate on glass volume so edges have more chrome than flat face center.
-            // This creates the classic glass-rod shoulder highlight.
-            float softboxKeyShoulder = mix(softboxKeyLobe, softboxKeyLobe * glassProfileSlope, 0.55);
+            float softboxKeyLobe = pow(softboxKeyDot, 1.8);
+            // Tight slope gate: shoulder starts at 0.18, full at 0.55.
+            // Below 0.18 = flat face centre → zero chrome. Above 0.55 = full chrome.
+            float shoulderGate = smoothstep(0.18, 0.55, glassProfileSlope);
+            float softboxKeyShoulder = softboxKeyLobe * shoulderGate;
             float3 softboxKeyColour = float3(0.92, 0.94, 0.98); // cool silver
-            float softboxKeyStrength = 0.52 * (1.0 - solidMode);
+            float softboxKeyStrength = 0.28 * (1.0 - solidMode); // was 0.52 — halved
             float3 softboxKeyContrib = softboxKeyColour * softboxKeyShoulder * softboxKeyStrength;
 
-            // Fill light: warm lower-right counter, narrower lobe.
+            // Fill light: warm lower-right counter — shoulder-gated too.
             float3 fillLight3DSoftbox = normalize(float3(0.60, 0.58, 0.55));
             float softboxFillDot = max(dot(glassSurfaceNormal, fillLight3DSoftbox), 0.0);
-            float softboxFillLobe = pow(softboxFillDot, 2.2);
+            float softboxFillLobe = pow(softboxFillDot, 2.8);
             float3 softboxFillColour = float3(0.88, 0.86, 0.80); // warm silver
-            float softboxFillStrength = 0.22 * (1.0 - solidMode);
+            float softboxFillStrength = 0.10 * shoulderGate * (1.0 - solidMode); // was 0.22
             float3 softboxFillContrib = softboxFillColour * softboxFillLobe * softboxFillStrength;
 
-            // Rim: tight Fresnel-only white catch light at the very edge.
-            // glassVolumeFresnel is already largest at grazing angles,
-            // so we don't need a separate dot product — just gate more sharply.
-            float rimFresnel = pow(glassVolumeFresnel, 1.8);
-            float3 rimContrib = float3(0.95, 0.97, 1.0) * rimFresnel * 0.38 * (1.0 - solidMode);
+            // Rim: tight Fresnel-only catch light. Keep this — it's the crisp
+            // edge line that separates glass from wallpaper. Fresnel^2.4 makes it
+            // appear only at very grazing angles, not across the face.
+            float rimFresnel = pow(glassVolumeFresnel, 2.4);
+            float3 rimContrib = float3(0.95, 0.97, 1.0) * rimFresnel * 0.42 * (1.0 - solidMode);
 
             // Composite: screen-blend all three studio lights into glassFace so
             // wallpaper colours underneath are preserved and lifted, not washed.
@@ -1928,7 +1931,7 @@ class LiquidWallpaperRenderer(
             // over dark wallpaper (where the effect is most visible and needed).
             float chromaBoostDepth = glassVolumeRegion * (1.0 - solidMode);
             float chromaBoostDarkness = 1.0 - smoothstep(0.28, 0.72, glassFaceLumaChroma);
-            float chromaBoost = 1.0 + 0.55 * chromaBoostDepth * chromaBoostDarkness;
+            float chromaBoost = 1.0 + 0.70 * chromaBoostDepth * chromaBoostDarkness;
             float3 chromaAmplified = clamp(
                 float3(glassFaceLumaChroma) + glassFaceChromaOnly * chromaBoost,
                 0.0, 1.0
